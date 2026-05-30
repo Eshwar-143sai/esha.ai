@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>esha.ai — Natural Language Software Compiler & Playground</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Top Premium Navigation -->
+    <header>
+      <div class="brand-section">
+        <div class="brand-logo">esha.ai</div>
+        <div class="brand-tag">v1.0 compiler</div>
+      </div>
+      
+      <div class="header-controls">
+        <select id="template-dropdown" class="template-selector" onchange="handleTemplateChange()">
+          <option value="ecommerce">SaaS Market E-Commerce Store</option>
+          <option value="kanban">Kanban Task Management Board</option>
+          <option value="medical">Medical Clinic Slot Scheduler</option>
+          <option value="vague">Vague Prompt (Triggers Stage 2 Loop)</option>
+        </select>
+        
+        <button id="api-key-header-btn" class="api-key-btn" onclick="toggleApiSettingsDrawer()">
+          Connect API Key
+        </button>
+        
+        <button id="compile-btn" class="btn" onclick="startFullCompilation()">
+          Run Compiler
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="main-content">
+      
+      <!-- Interactive Sandbox Disclaimer -->
+      <div class="info-disclaimer-banner" id="disclaimer-banner">
+        <div>
+          🚀 <strong>Interactive Playground Mode:</strong> This compiler operates in dynamic simulation mode by default, demonstrating how structural code cascades, RBAC policies, database validations, and patch repairs operate. Use the <strong>Connect API Key</strong> button above to connect your Claude account and compile actual live software in the browser!
+        </div>
+        <button class="close-banner-btn" onclick="document.getElementById('disclaimer-banner').remove()">×</button>
+      </div>
+
+      <!-- 15-Stage Pipeline Process Timeline Graph -->
+      <section class="pipeline-section">
+        <div class="section-title">
+          <span>Software Compiler Compiler Timeline Map</span>
+          <span style="font-size:0.75rem; color:var(--primary); font-weight:600;">Stages 1 to 13 Pipeline Streams</span>
+        </div>
+        
+        <div class="timeline-flow">
+          <!-- Stage 1 -->
+          <div class="timeline-node active" data-id="1">
+            <div class="node-icon-wrapper">1</div>
+            <div class="node-title">Intent Extract</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="1"></div>
+          
+          <!-- Stage 2 -->
+          <div class="timeline-node" data-id="2">
+            <div class="node-icon-wrapper">2</div>
+            <div class="node-title">Clarifier Loop</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="2"></div>
+          
+          <!-- Stage 3 -->
+          <div class="timeline-node" data-id="3">
+            <div class="node-icon-wrapper">3</div>
+            <div class="node-title">Sys Designer</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="3"></div>
+          
+          <!-- Stage 4 -->
+          <div class="timeline-node" data-id="4">
+            <div class="node-icon-wrapper">4</div>
+            <div class="node-title">DB Schema</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="4"></div>
+          
+          <!-- Stage 5 -->
+          <div class="timeline-node" data-id="5">
+            <div class="node-icon-wrapper">5</div>
+            <div class="node-title">API Routes</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="5"></div>
+
+          <!-- Stage 6 -->
+          <div class="timeline-node" data-id="6">
+            <div class="node-icon-wrapper">6</div>
+            <div class="node-title">UI Schema</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="6"></div>
+
+          <!-- Stage 7 -->
+          <div class="timeline-node" data-id="7">
+            <div class="node-icon-wrapper">7</div>
+            <div class="node-title">Auth RBAC</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="7"></div>
+
+          <!-- Stage 8 -->
+          <div class="timeline-node" data-id="8">
+            <div class="node-icon-wrapper">8</div>
+            <div class="node-title">Business Logic</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="8"></div>
+
+          <!-- Stage 9 -->
+          <div class="timeline-node" data-id="9">
+            <div class="node-icon-wrapper">9</div>
+            <div class="node-title">Cross Validator</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="9"></div>
+
+          <!-- Stage 12 -->
+          <div class="timeline-node" data-id="12">
+            <div class="node-icon-wrapper">12</div>
+            <div class="node-title">Runtime Contracts</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="12"></div>
+
+          <!-- Stage 13 -->
+          <div class="timeline-node" data-id="13">
+            <div class="node-icon-wrapper">13</div>
+            <div class="node-title">Exec Simulator</div>
+            <div class="node-status">idle</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stage Playgrounds & Panels -->
+      <section class="workspace-section">
+        
+        <!-- Sidebar List -->
+        <div class="stages-sidebar">
+          <div class="sidebar-item active" data-id="1">
+            <span class="item-num">1</span>
+            <div class="item-info">
+              <span class="item-name">Intent Extractor</span>
+              <span class="item-tag">Stage 1: Intent spec</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="2">
+            <span class="item-num">2</span>
+            <div class="item-info">
+              <span class="item-name">Clarifier Agent</span>
+              <span class="item-tag">Stage 2: Question audit</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="3">
+            <span class="item-num">3</span>
+            <div class="item-info">
+              <span class="item-name">System Designer</span>
+              <span class="item-tag">Stage 3: Module mapping</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="4">
+            <span class="item-num">4</span>
+            <div class="item-info">
+              <span class="item-name">DB Schema Generator</span>
+              <span class="item-tag">Stage 4: DDL normalization</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="5">
+            <span class="item-num">5</span>
+            <div class="item-info">
+              <span class="item-name">API Generator</span>
+              <span class="item-tag">Stage 5: CRUD endpoints</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="6">
+            <span class="item-num">6</span>
+            <div class="item-info">
+              <span class="item-name">UI Generator</span>
+              <span class="item-tag">Stage 6: Forms binding</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="7">
+            <span class="item-num">7</span>
+            <div class="item-info">
+              <span class="item-name">Auth Generator</span>
+              <span class="item-tag">Stage 7: Policies mapping</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="8">
+            <span class="item-num">8</span>
+            <div class="item-info">
+              <span class="item-name">Business Logic</span>
+              <span class="item-tag">Stage 8: Rules enforcement</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="9">
+            <span class="item-num">9</span>
+            <div class="item-info">
+              <span class="item-name">Consistency Validator</span>
+              <span class="item-tag">Stage 9: Violations check</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="12">
+            <span class="item-num">12</span>
+            <div class="item-info">
+              <span class="item-name">Runtime Contracts</span>
+              <span class="item-tag">Stage 12: DDL, TS, Casbin</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="13">
+            <span class="item-num">13</span>
+            <div class="item-info">
+              <span class="item-name">Execution Simulator</span>
+              <span class="item-tag">Stage 13: Dry-run test</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Playground Sandbox Pane -->
+        <div class="playground-pane">
+          
+          <div class="pane-header">
+            <div class="pane-title-group">
+              <span id="pane-tag" class="pane-badge">Stage 1</span>
+              <h2 id="pane-title" style="font-size:1.15rem; font-weight:700;">Intent Extractor</h2>
+            </div>
+            <div class="pane-controls">
+              <span id="pane-description" style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">Intent Specifications</span>
+            </div>
+          </div>
+
+          <div class="playground-grid">
+            <!-- Col 1: System Developer Prompt -->
+            <div class="grid-col">
+              <div class="col-header">System Compiler Prompt</div>
+              <div class="col-content">
+                <div id="stage-prompt-content" class="prompt-viewer">SYSTEM: Loading developer prompt...</div>
+              </div>
+            </div>
+            
+            <!-- Col 2: Inputs / Outputs / Simulator -->
+            <div class="grid-col">
+              <div class="col-header">Compiler Input Payload</div>
+              <div class="col-content">
+                <div id="stage-input-content">
+                  <div class="prompt-viewer">Loading compilation inputs...</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Col 3: Output Editor / Dashboard Pane -->
+            <div id="stage-output-container" class="grid-col" style="grid-column: span 1;">
+              <!-- Dynamic content injected by app.js -->
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- Bottom Interactive Dashboard Tabs -->
+      <section class="bottom-dashboard">
+        
+        <div class="tab-headers">
+          <button class="tab-btn active" onclick="handleTabChange('contracts')">Stage 12: Final Build Contracts</button>
+          <button class="tab-btn" onclick="handleTabChange('datasets')">Stage 14: Evaluation Dataset Builder</button>
+          <button class="tab-btn" onclick="handleTabChange('metrics')">Stage 15: Cost & Quality Dashboard</button>
+          <button class="tab-btn" onclick="handleTabChange('console')">System Event Console</button>
+        </div>
+
+        <!-- Tab 1: Stage 12 Code Outputs -->
+        <div id="tab-contracts" class="tab-pane active">
+          <div class="code-tab-grid">
+            <div class="code-tab-menu">
+              <div class="code-menu-item active" onclick="setCodeTab('ddl')">PostgreSQL DDL Schema</div>
+              <div class="code-menu-item" onclick="setCodeTab('seed')">SQL Seeding Data</div>
+              <div class="code-menu-item" onclick="setCodeTab('types')">API TypeScript interfaces</div>
+              <div class="code-menu-item" onclick="setCodeTab('stubs')">API Express Route Stubs</div>
+              <div class="code-menu-item" onclick="setCodeTab('casbin')">Casbin RBAC Policies</div>
+              <div class="code-menu-item" onclick="setCodeTab('react')">React Router Route Map</div>
+              <div class="code-menu-item" onclick="setCodeTab('checklist')">Execution Checklist</div>
+            </div>
+            <div class="code-container" style="height:350px;">
+              <pre id="code-output-viewer" class="code-viewer">Run compiler first to output relational and TypeScript contracts.</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Stage 14 Benchmarks Dataset -->
+        <div id="tab-datasets" class="tab-pane">
+          <div class="violations-table-container">
+            <table class="violations-table">
+              <thead>
+                <tr>
+                  <th style="width:60px;">ID</th>
+                  <th style="width:200px;">PRODUCT DEMO PROMPT</th>
+                  <th style="width:140px;">DOMAIN / EDGE TYPE</th>
+                  <th>EXPECTED BEHAVIOR</th>
+                  <th style="width:240px;">KNOWN CRITICAL FAILURE MODES</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:rgba(255,255,255,0.015);">
+                  <td colspan="5" style="font-weight:700; font-size:0.75rem; letter-spacing:0.05em; color:var(--primary); padding-top:0.8rem;">SaaS PRODUCTION PROMPTS (TEST GROUP)</td>
+                </tr>
+                <tr>
+                  <td><code>P1</code></td>
+                  <td style="font-weight:500;">Build an e-commerce platform with buyers, sellers, and an admin.</td>
+                  <td><span class="v-layer-tag">Retail Marketplace</span></td>
+                  <td>Normalize items, reviews, orders tables. Secure checkout routes.</td>
+                  <td>Pay gate failure; Reviews integrity loop.</td>
+                </tr>
+                <tr>
+                  <td><code>P2</code></td>
+                  <td style="font-weight:500;">Collaborative medical doctor portal booking visits.</td>
+                  <td><span class="v-layer-tag">Clinic Booking</span></td>
+                  <td>Patients scheduling calendar; prescriptions storage; invoice flows.</td>
+                  <td>Double slot scheduling conflicts.</td>
+                </tr>
+                <tr>
+                  <td><code>P3</code></td>
+                  <td style="font-weight:500;">Build a SaaS lead management and contact log CRM.</td>
+                  <td><span class="v-layer-tag">Enterprise CRM</span></td>
+                  <td>Account tracking; logs interactions; sales roles pipelines.</td>
+                  <td>Circular dependencies in lead assignments.</td>
+                </tr>
+                <tr style="background:rgba(255,255,255,0.015);">
+                  <td colspan="5" style="font-weight:700; font-size:0.75rem; letter-spacing:0.05em; color:var(--warning); padding-top:0.8rem;">ADVERSARIAL EDGE CASES (STRESS GROUP)</td>
+                </tr>
+                <tr>
+                  <td><code>E1</code></td>
+                  <td style="font-weight:500;">Make a cool website with logs and stuff.</td>
+                  <td><span class="v-layer-tag" style="color:var(--warning);">Vague Intent</span></td>
+                  <td>Set <code>requires_clarification: true</code>. Halts at Stage 2.</td>
+                  <td>System Designer fails on empty tables entity specifications.</td>
+                </tr>
+                <tr>
+                  <td><code>E2</code></td>
+                  <td style="font-weight:500;">Book clinic slots but users can never insert slots.</td>
+                  <td><span class="v-layer-tag" style="color:var(--warning);">Conflicting Logic</span></td>
+                  <td>Validator detects logical contradictions; triggers repair warning.</td>
+                  <td>Infinite validation compile loops.</td>
+                </tr>
+                <tr>
+                  <td><code>E3</code></td>
+                  <td style="font-weight:500;">Build billing ledger app without storing buyer accounts.</td>
+                  <td><span class="v-layer-tag" style="color:var(--warning);">Missing Entities</span></td>
+                  <td>Resolves missing reference dependencies by injecting FK columns.</td>
+                  <td>Missing relation integrity crash.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 3: Stage 15 Tradeoffs & Analytics Dashboard -->
+        <div id="tab-metrics" class="tab-pane">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-title">Pipeline Success Rate</div>
+              <div id="m-success-rate" class="metric-value">98.4%</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Average Latency</div>
+              <div id="m-avg-latency" class="metric-value">4.85s</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">p95 Latency Threshold</div>
+              <div id="m-p95-latency" class="metric-value">8.20s</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Repair Effectiveness</div>
+              <div id="m-repair-effectiveness" class="metric-value">92.5%</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Avg Repairs Per Run</div>
+              <div id="m-avg-repairs" class="metric-value">0.6</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-title">Estimated Cost Per Run</div>
+              <div id="m-cost-usd" class="metric-value">$0.045</div>
+            </div>
+          </div>
+          
+          <div class="metrics-row">
+            <div class="metric-panel">
+              <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:1rem; text-transform:uppercase; color:var(--text-muted);">Pipeline Parallelization Matrix</h3>
+              <div style="font-size:0.825rem; line-height:1.6;">
+                <p style="margin-bottom:0.5rem;">Stages 5 (API), 6 (UI), 7 (Auth), and 8 (Business Logic) are configured to execute in **parallel**, reducing cumulative compilation latency by ~1,200ms compared to sequential executions.</p>
+                <div style="background:rgba(255,255,255,0.02); padding:0.75rem; border-radius:var(--radius-sm); border:1px solid var(--border-color); font-family:var(--font-mono); font-size:0.75rem;">
+                  [Latency Map] Sequential compile time: 6,050ms | Parallel compile time: 4,850ms (-20%)
+                </div>
+              </div>
+            </div>
+            
+            <div class="metric-panel" style="display:flex; flex-direction:column; justify-content:space-between;">
+              <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:1rem; text-transform:uppercase; color:var(--text-muted);">Tradeoff Benchmark Simulators</h3>
+              <p style="font-size:0.825rem; margin-bottom:1rem; color:var(--text-muted);">Execute 50 randomized compiles under different adversarial bounds to dynamically stress-test success parameters.</p>
+              <button class="btn btn-secondary" onclick="runBatchMetricsSimulation()">Run Batch Compiles Simulator (50 runs)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: System Event Console -->
+        <div id="tab-console" class="tab-pane">
+          <div id="console-logs" class="terminal-console" style="height:250px; background:#040916; color:#9CA3AF; font-size:0.75rem; border-color:var(--border-color);">
+            <div>[System] Event console loaded. Run the compiler or click settings to view live compiler event stream logs.</div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- MODAL: Stage 2 Clarification Modal Overlay -->
+  <div id="clarifier-overlay" class="overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 style="font-size:1.1rem; font-weight:700; color:var(--warning);">Stage 2 Clarification Required</h3>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:1.25rem;">
+          The intent parser flagged this natural language prompt as vague or missing core dependencies. Please answer the clarification questions below to resume compilation.
+        </p>
+        <div id="clarifier-questions-container">
+          <!-- Dynamically injected -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="submitClarifierAnswers()">Submit Scope Details</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Claude API Settings Toggler -->
+  <div id="api-key-overlay" class="overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 style="font-size:1.1rem; font-weight:700;">Connect Claude API Key</h3>
+        <button class="close-banner-btn" style="font-size:1.5rem;" onclick="toggleApiSettingsDrawer()">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.875rem; color:var(--text-muted); margin-bottom:1.25rem;">
+          Input your Anthropic API Key to transition the application from simulated playground mode into a <strong>real live natural language software compiler</strong>!
+        </p>
+        <div style="margin-bottom:1.25rem;">
+          <label style="display:block; font-size:0.8rem; font-weight:600; text-transform:uppercase; margin-bottom:0.5rem; color:var(--text-muted);">Anthropic API Key</label>
+          <input type="password" id="anthropic-api-key" class="clarifier-input" placeholder="sk-ant-api03-..." style="font-family:var(--font-mono);">
+        </div>
+        <div style="background:rgba(99,102,241,0.05); padding:1rem; border-radius:var(--radius-md); border:1px solid rgba(99,102,241,0.2); font-size:0.8rem; line-height:1.5;">
+          💡 <strong>Developer Note on CORS restrictions:</strong> Browser-based fetch requests directly to Anthropic's endpoints will trigger CORS policy errors unless you disable browser CORS flags or run a minor local CORS proxy. Click save below to proceed.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="toggleApiSettingsDrawer()">Cancel</button>
+        <button class="btn" onclick="saveApiKeyDetails()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom User Request Input Workspace Overlay Drawer (Persistent on workspace) -->
+  <div class="app-prompt-drawer" style="display:none;"></div>
+
+  <!-- Persistent Bottom Prompt Bar -->
+  <div style="position:fixed; bottom:1.5rem; right:2rem; left:2rem; z-index:40; display:flex; justify-content:center; pointer-events:none;">
+    <div style="width:100%; max-width:850px; background:#121824; border:1px solid rgba(255,255,255,0.08); padding:0.75rem 1rem; border-radius:var(--radius-md); box-shadow:0 10px 25px -5px rgba(0,0,0,0.5); pointer-events:auto; display:flex; gap:0.75rem; align-items:center;">
+      <div style="flex-grow:1;">
+        <label style="display:block; font-size:0.65rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.2rem;">Natural Language Request Input</label>
+        <input type="text" id="user-prompt-input" class="clarifier-input" style="background:transparent; border:none; padding:0; font-size:0.875rem; color:var(--text-main);" placeholder="Enter natural language request details...">
+      </div>
+      <button class="btn btn-primary" style="padding:0.4rem 1rem; font-size:0.8rem;" onclick="state.userPrompt = document.getElementById('user-prompt-input').value; startFullCompilation();">Compile</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
