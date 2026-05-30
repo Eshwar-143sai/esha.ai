@@ -494,10 +494,10 @@
           <label style="display:block; font-size:0.8rem; font-weight:600; text-transform:uppercase; margin-bottom:0.5rem; color:var(--text-muted);">CORS Proxy Configuration</label>
           <div style="display:flex; flex-direction:column; gap:0.5rem;">
             <label style="font-size:0.825rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-              <input type="radio" name="proxy-type" value="direct"> Direct Request (requires CORS browser configuration)
+              <input type="radio" name="proxy-type" value="public" checked> Pre-configured Public CORS Proxy (corsproxy.io)
             </label>
             <label style="font-size:0.825rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-              <input type="radio" name="proxy-type" value="public" checked> Use Transparent Public CORS Proxy (corsproxy.io)
+              <input type="radio" name="proxy-type" value="alt"> Alternative CORS Proxy (allorigins.win)
             </label>
             <label style="font-size:0.825rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
               <input type="radio" name="proxy-type" value="custom"> Custom Proxy URL
@@ -507,7 +507,7 @@
         </div>
 
         <div style="background:rgba(99,102,241,0.05); padding:1rem; border-radius:var(--radius-md); border:1px solid rgba(99,102,241,0.2); font-size:0.8rem; line-height:1.5;">
-          💡 <strong>Out-of-the-box compile enabled:</strong> The default public CORS proxy is pre-selected and works instantly on client-side JS without requiring any chrome extensions or server setups!
+          💡 <strong>Transparent Proxy Enabled:</strong> The default public proxy handles CORS handshakes in the background. Real-time API streaming executes directly without requiring local servers.
         </div>
       </div>
       <div class="modal-footer">
