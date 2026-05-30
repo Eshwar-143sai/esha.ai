@@ -11,7 +11,7 @@ const STAGE_METADATA = [
   { id: 7, name: "Auth Generator", tag: "Stage 7", desc: "Fine-Grained RBAC Policies" },
   { id: 8, name: "Business Logic", tag: "Stage 8", desc: "Deterministic Middleware Rules" },
   { id: 9, name: "Cross Validator", tag: "Stage 9", desc: "Consistency Auditor" },
-  { id: 10, name: "Patch Generator", tag: "Stage 10", desc: "RFC 6902 Surgical Repair" },
+  { id: 10, name: "Patch Generator", tag: "Stage 10", desc: "Surgical Repair Operations" },
   { id: 11, name: "Targeted Regenerator", tag: "Stage 11", desc: "Incremental Patch Application" },
   { id: 12, name: "Runtime Contracts", tag: "Stage 12", desc: "SQL DDL, Express, Casbin, React" },
   { id: 13, name: "Execution Simulator", tag: "Stage 13", desc: "Dry-Run Pipeline Executor" },
@@ -19,53 +19,39 @@ const STAGE_METADATA = [
   { id: 15, name: "Tradeoff Analyzer", tag: "Stage 15", desc: "Cost, Latency & Skip Optimization" }
 ];
 
-// App Templates
+// Complete 10 SaaS Production Product Prompts + 10 Adversarial Edge Case Benchmarks
+const PRODUCT_BENCHMARKS = [
+  { id: "P1", name: "E-Commerce Marketplace", domain: "Retail & Marketplaces", prompt: "Build an e-commerce platform with buyers, sellers, and an admin. Buyers can purchase items and write reviews. Sellers can list items. Admin can ban users and delete reviews.", entities: ["users", "items", "orders", "reviews"], roles: ["buyer", "seller", "admin"], expected: "Normalize items, reviews, and orders tables. Secure checkout stubs.", failures: ["Circular checkout dependency", "Payment gateway race conditions"] },
+  { id: "P2", name: "Kanban Task Board", domain: "Collaboration Systems", prompt: "Build a collaborative project management board where managers can create workspaces and invite members. Members can add cards, move cards across Swimlanes (To Do, In Progress, Done), and attach comments. Guest users can only view.", entities: ["users", "workspaces", "cards", "swimlanes", "comments"], roles: ["manager", "member", "guest"], expected: "Swimlane updates, workspace models, card commenting boundaries.", failures: ["Workspace member leaks", "Circular dependency in drag-drop logs"] },
+  { id: "P3", name: "Clinic Scheduler", domain: "Healthcare Systems", prompt: "Create an online clinic booking app. Patients can book sessions with doctors. Doctors can specify their weekly slots and write e-prescriptions. Receptionists can reschedule bookings and charge payments.", entities: ["users", "doctors", "patients", "appointments", "prescriptions", "payments"], roles: ["patient", "doctor", "receptionist"], expected: "Relational calendar slots, prescription ledgers, patient checkout forms.", failures: ["Double scheduling booking race condition"] },
+  { id: "P4", name: "Real Estate Brokerage", domain: "Property Marketplaces", prompt: "Build a property listing portal. Agents can upload listings with pricing and pictures. Buyers can save listings, send inquiries, and schedule physical visits. Admin audits all listings before publishing.", entities: ["users", "properties", "inquiries", "visits", "reviews"], roles: ["agent", "buyer", "admin"], expected: "Verify properties list with status flags; map agents to buyer inquiries.", failures: ["Unchecked property publication bypasses audit"] },
+  { id: "P5", name: "LMS Learning Portal", domain: "EdTech & Courses", prompt: "Create a learning management system. Instructors create courses and add video lectures. Students enroll, view videos, and submit quizzes. Grading is automated based on multiple-choice scores.", entities: ["users", "courses", "lectures", "enrollments", "quizzes", "scores"], roles: ["instructor", "student", "admin"], expected: "Establish quiz scoring ledger; check student video views stubs.", failures: ["Quiz results write-leak between students"] },
+  { id: "P6", name: "Fitness Activity Logger", domain: "Fitness & Health", prompt: "Build a fitness tracking app. Users log workouts (cardio, weights) and trace daily calories. Trainers can view client workout logs, leave feedback, and assign custom diet plan logs.", entities: ["users", "workouts", "logs", "calories", "feedbacks", "diets"], roles: ["trainer", "client", "admin"], expected: "Calculate daily calorie totals dynamically; secure workouts logs.", failures: ["Trainer feedback maps to unassigned client workouts"] },
+  { id: "P7", name: "Helpdesk Ticketing", domain: "Customer Support", prompt: "Build a support helpdesk. Customers create support tickets with severity. Agents claim tickets, post updates, and change status. Managers review average resolution times and assign tickets.", entities: ["users", "tickets", "messages", "assignments", "metrics"], roles: ["customer", "agent", "manager"], expected: "Auto-assign ticket status; build message comment timelines.", failures: ["Double agent assignment concurrency conflict"] },
+  { id: "P8", name: "Event Booking Hub", domain: "Ticketing & Events", prompt: "Create an event booking site. Hosts create events with ticket inventory. Attendees buy tickets and write reviews. Admin handles payouts to hosts and processes cancellation refunds.", entities: ["users", "events", "tickets", "payouts", "refunds"], roles: ["host", "attendee", "admin"], expected: "Track ticket quantities; secure payout records; build event lists.", failures: ["Ticket inventory overbooking under high traffic load"] },
+  { id: "P9", name: "Split Ledger Splitwise", domain: "Personal Finance", prompt: "Build a shared expense tracker. Group members create expense logs, tag members, and split costs evenly. The system dynamically calculates balances and records settle-up payments.", entities: ["users", "groups", "expenses", "splits", "payments"], roles: ["member", "admin"], expected: "Calculate net settle-up balances; build expense splits mappings.", failures: ["Negative splits circular balance loop"] },
+  { id: "P10", name: "Inventory Control ERP", domain: "Enterprise Logistics", prompt: "Build an inventory management app. Warehouse managers log stock items, record shipments, and raise reorder flags when stock is low. Suppliers view reorder logs and update delivery status.", entities: ["users", "items", "stocks", "shipments", "suppliers", "reorders"], roles: ["manager", "supplier", "admin"], expected: "Validate reorder logic flags; record warehouse stock shifts.", failures: ["Low stock reorder flag fails to trigger at limit boundary"] }
+];
+
+const EDGE_BENCHMARKS = [
+  { id: "E1", name: "Minimal Vague Prompt", edge_type: "Vague Request", prompt: "Make a cool website with logs and stuff.", expected: "Sets requires_clarification: true in Stage 1. Pauses at Stage 2 showing Targeted questions modal.", failures: ["Compiler crash due to empty table schema structure"] },
+  { id: "E2", name: "Circular Logical Loop", edge_type: "Conflicting Requirements", prompt: "Build an e-commerce marketplace where checkout creates review items but reviews block completed checkouts, and reviews can never be written.", expected: "Validator (Stage 9) catches circular logical reference. Triggers block overlay after 3 attempts.", failures: ["Infinite compiler verification loop"] },
+  { id: "E3", name: "Stateless Ledger Account", edge_type: "Incomplete Requirements", prompt: "Build a subscription billing ledger but do not store customer records anywhere.", expected: "Compiler generates custom relation structures by injecting guest columns to bypass FK blocks.", failures: ["Orphan billing entries lack references"] },
+  { id: "E4", name: "Monolithic Overload", edge_type: "Scope Overloaded", prompt: "Build a full Facebook, Amazon, Slack, and Salesforce clone inside a single page.", expected: "Pulls entities under logical modules; trims scope warning flags.", failures: ["Entity count overflow; modules cross-reference block"] },
+  { id: "E5", name: "Ambiguous Permission Boundaries", edge_type: "Ambiguous Roles", prompt: "Build a blog where everyone has full admin access but some authors can only read logs.", expected: "Validator triggers warning for overlapping permissions and forces default-deny policy rules.", failures: ["Admin scope leakage to guest authors"] },
+  { id: "E6", name: "Stateless Activity Log", edge_type: "Stateless Database", prompt: "Build a social network but do not write any database entries or posts to disk.", expected: "Architects memory cache queues modules; throws warning for database data persistence rules.", failures: ["Data loss on cache queue overflow"] },
+  { id: "E7", name: "Gateway Mismatch", edge_type: "External Services", prompt: "Build checkout app with Stripe, PayPal, and Crypto but no currency cash ledger.", expected: "Generates generic non-functional gateway adapters; flags warnings for currency formats.", failures: ["Failed payment ledger balancing"] },
+  { id: "E8", name: "Undefined Route Maps", edge_type: "Access Routes Mismatch", prompt: "LMS where students can delete courses but instructors can only view log files.", expected: "Cross Validator catches student route anomalies; Stage 10 patches student access rules.", failures: ["Student credential privilege escalation"] },
+  { id: "E9", name: "Circular Seeding Mismatch", edge_type: "Foreign Key Seeds Conflict", prompt: "Table A requires foreign key from B at insert time, but Table B requires PK from A at seed.", expected: "Validator identifies circular FK insert order; separates seeding steps into incremental updates.", failures: ["SQL Seeding fails due to constraint blocks"] },
+  { id: "E10", name: "Keyless Ledger Audit", edge_type: "Missing Identifiers", prompt: "Build an audit ledger table with no id key columns or timestamp logs.", expected: "DB Schema Generator enforces standard relational models; injects UUID primary keys.", failures: ["Orphan duplicate records cannot be searched"] }
+];
+
+// Map templates object for compatibility
 const APP_TEMPLATES = {
-  ecommerce: {
-    name: "SaaS E-Commerce Platform",
-    prompt: "Build an e-commerce platform with buyers, sellers, and an admin. Buyers can purchase items and write reviews. Sellers can list items. Admin can ban users and delete reviews.",
-    entities: ["users", "items", "orders", "reviews"],
-    roles: ["buyer", "seller", "admin"],
-    features: [
-      { id: "f1", name: "Item Listing", desc: "Sellers list items with pricing", role_scope: ["seller"] },
-      { id: "f2", name: "Checkout Cart", desc: "Buyers purchase multiple items", role_scope: ["buyer"] },
-      { id: "f3", name: "User Review System", desc: "Buyers review items, admin can delete reviews", role_scope: ["buyer", "admin"] }
-    ],
-    expected_failure: null
-  },
-  kanban: {
-    name: "Kanban Task Management",
-    prompt: "Build a collaborative project management board where managers can create workspaces and invite members. Members can add cards, move cards across Swimlanes (To Do, In Progress, Done), and attach comments. Guest users can only view.",
-    entities: ["users", "workspaces", "cards", "swimlanes", "comments"],
-    roles: ["manager", "member", "guest"],
-    features: [
-      { id: "f1", name: "Workspace Creation", desc: "Managers create and invite", role_scope: ["manager"] },
-      { id: "f2", name: "Task Card Movements", desc: "Members update swimlane states", role_scope: ["manager", "member"] },
-      { id: "f3", name: "Card Comment Threads", desc: "Collaborators post comments", role_scope: ["manager", "member"] }
-    ],
-    expected_failure: null
-  },
-  medical: {
-    name: "Medical Clinic Appointment Scheduler",
-    prompt: "Create an online clinic booking app. Patients can book sessions with doctors. Doctors can specify their weekly slots and write e-prescriptions. Receptionists can reschedule bookings and charge payments.",
-    entities: ["users", "doctors", "patients", "appointments", "prescriptions", "payments"],
-    roles: ["patient", "doctor", "receptionist"],
-    features: [
-      { id: "f1", name: "Slot Calendar Management", desc: "Doctors input slots", role_scope: ["doctor"] },
-      { id: "f2", name: "Appointment Booking", desc: "Patients book clinic slots", role_scope: ["patient"] },
-      { id: "f3", name: "E-Prescriptions", desc: "Doctors submit e-prescriptions", role_scope: ["doctor"] },
-      { id: "f4", name: "Payment Receipts", desc: "Receptionists invoice patients", role_scope: ["receptionist"] }
-    ],
-    expected_failure: null
-  },
-  vague: {
-    name: "Vague Prompt (Triggers Stage 2 Loop)",
-    prompt: "Make a cool website with logs and stuff.",
-    entities: [],
-    roles: [],
-    features: [],
-    expected_failure: "Expected to trigger Stage 2 Clarification required loop. Pipeline halts and presents visual clarification form questions."
-  }
+  ecommerce: PRODUCT_BENCHMARKS[0],
+  kanban: PRODUCT_BENCHMARKS[1],
+  medical: PRODUCT_BENCHMARKS[2],
+  vague: EDGE_BENCHMARKS[0]
 };
 
 // Global App State
@@ -76,7 +62,7 @@ const state = {
   isCompiling: false,
   useClaudeAPI: false,
   apiKey: "",
-  proxyType: "direct", // direct | public | custom
+  proxyType: "public", // default is public CORS proxy
   customProxyUrl: "",
   userPrompt: APP_TEMPLATES.ecommerce.prompt,
   stages: {},
@@ -96,169 +82,64 @@ const state = {
   dirtyFromStage: null
 };
 
-// System Prompts loaded directly from the spec
-const SYSTEM_PROMPTS = {
-  1: `You are the Intent Extraction Engine — Stage 1 of a software compiler pipeline.
-Your job is to parse a natural language software request into a normalized, unambiguous intent specification that all downstream stages will depend on.
-
-RULES:
-- Output valid JSON only. No markdown. No prose. No comments.
-- Never invent entities not implied by the input.
-- If information is missing, set value to null and add an entry to assumptions[].
-- Flag all ambiguities in open_questions[].
-- If the prompt is too vague to proceed (fewer than 2 inferable entities), set "requires_clarification": true and populate open_questions[].`,
-  
-  2: `You are the Clarification Agent — Stage 2 of the compiler pipeline.
-You receive an intent JSON. Your job is to decide if generation can proceed safely or if critical information is missing.
-
-DECISION RULES:
-- Ask ONLY if a missing detail would cause cross-layer inconsistency (e.g., payment mentioned but no currency/gateway, roles mentioned but no permission boundaries defined).
-- Maximum 3 questions. Prefer assumptions over questions.
-- If assumptions cover all gaps → set proceed: true immediately.
-- If proceed: false, explain exactly which pipeline stage would fail and why.`,
-
-  3: `You are a Principal Software Architect — Stage 3 of the compiler pipeline.
-Convert intent specification into a complete, technology-agnostic system architecture.
-Every downstream generator (DB, API, UI, Auth, Logic) depends on this output.
-Gaps here cascade into all layers — be exhaustive.
-
-RULES:
-- Every feature maps to exactly one module.
-- Every entity participates in at least one data_flow.
-- Every role appears in role_matrix with explicit permissions.
-- Every module has a unique id — used as foreign reference by later stages.
-- Non-functionals must include: auth_strategy, data_retention, rate_limiting.`,
-
-  4: `You are a Database Architect — Stage 4 of the compiler pipeline.
-Generate a fully normalized relational schema from the architecture spec.
-This schema is the source of truth for API field validation and UI data binding.
-
-RULES:
-- PostgreSQL-compatible DDL representable as JSON.
-- Every table has: id (UUID PK), created_at, updated_at, deleted_at (soft delete).
-- Every foreign key must reference an existing table id in this schema.
-- No orphan tables — every table participates in at least one relationship.
-- Column types must be concrete: use varchar(n), not "string".
-- Indexes must be defined for all foreign keys and frequently-queried fields.
-- Flag any entity from architecture that cannot be mapped → validation_warnings[].`,
-
-  5: `You are an API Architect — Stage 5 of the compiler pipeline.
-Generate a complete REST API schema. Every endpoint must be traceable to a DB table and an architecture module.
-
-RULES:
-- Every request field must exist as a column in the referenced DB table.
-- Every response field must exist as a column in the referenced DB table.
-- No fields may be invented — if a concept isn't in the DB, it cannot appear in the API.
-- Include auth_required and allowed_roles on every endpoint.
-- Use snake_case for all field names and endpoint paths.
-- Pagination required on all list endpoints.
-- Endpoints must cover: create, read (single + list), update, delete per entity.
-- Flag any architecture feature that has no corresponding endpoint → coverage_gaps[].`,
-
-  6: `You are a UI Schema Generator — Stage 6 of the compiler pipeline.
-Generate a declarative, runtime-executable UI configuration.
-Every component must be traceable to an API endpoint. No orphan UI.
-
-RULES:
-- Every page maps to exactly one primary workflow from architecture.
-- Every form field must map to an API request body field (via endpoint_id + field name).
-- Every display field must map to an API response field.
-- Every action (button, submit) must reference a valid endpoint_id.
-- Role-visibility must be enforced per component using allowed_roles.
-- Flag unmapped components in validation_warnings[].`,
-
-  7: `You are an Authorization Architect — Stage 7 of the compiler pipeline.
-Generate a complete RBAC configuration that is directly executable by a policy engine (e.g., OPA, Casbin, or custom middleware).
-
-RULES:
-- Every role must come from the architecture role_matrix — no new roles.
-- Every policy must reference a valid endpoint_id from the API schema.
-- Apply least-privilege: default deny, explicit allow only.
-- Endpoint-level and resource-level (row-level) permissions must both be covered.
-- Flag any endpoint with no auth policy → unprotected_endpoints[].`,
-
-  8: `You are a Business Rules Engine — Stage 8 of the compiler pipeline.
-Generate executable, deterministic business logic rules.
-Each rule must be directly enforceable by middleware or a rules engine.
-
-RULES:
-- Every rule has a unique id, a trigger (event), a condition (boolean expression), and an action (side effect or rejection).
-- Rules must reference real entity fields from the DB schema.
-- No vague conditions like "if user is valid" — be specific.
-- Cover: access gates, state transitions, payment/premium logic, notifications, data integrity rules.
-- Flag any business_rule from architecture not covered here → coverage_gaps[].`,
-
-  9: `You are the Consistency Validator — Stage 9 of the compiler pipeline.
-Your job is the most critical in the pipeline: detect ALL inconsistencies across layers before anything reaches runtime.
-VALIDATE ALL OF THE FOLLOWING:
-1. UI → API: Every UI component field maps to a real endpoint_id + field
-2. API → DB: Every API request/response field maps to a real table column
-3. Auth → API: Every endpoint has at least one auth policy
-4. Logic → DB: Every business rule references real entity fields
-5. Role consistency: Roles in UI, API, Auth, and Architecture all match
-6. Orphan detection: Any table, endpoint, page, or rule with no references
-7. Missing CRUD: Any entity with incomplete create/read/update/delete coverage
-8. Soft delete: Any delete endpoint that bypasses soft-delete logic
-9. Pagination: Any list endpoint missing pagination config
-10. Required fields: Any required API field missing from DB`,
-
-  10: `You are the Patch Generator — Stage 10 of the compiler pipeline.
-You receive a validation report with violations. Generate surgical JSONPatch operations (RFC 6902) to fix only the violations.
-
-RULES:
-- One patch per violation — reference violation id.
-- Do NOT regenerate entire sections. Fix only the broken part.
-- Preserve all valid IDs, structures, and references.
-- If a violation requires new data to be invented (e.g., a missing column), use the most conservative reasonable value and add a note.
-- If a violation cannot be patched without human input, set requires_human: true.`,
-
-  11: `You are the Targeted Regenerator — Stage 11 of the compiler pipeline.
-Apply approved patches to the application JSON.
-
-RULES:
-- Apply ONLY the patches provided. Nothing else changes.
-- All existing IDs must remain unchanged.
-- Cross-references must remain consistent after patching.
-- After applying, output the complete updated application JSON.
-- Add a patch_log entry for each patch applied.`,
-
-  12: `You are the Runtime Contract Generator — Stage 12 of the compiler pipeline.
-Convert the final validated application JSON into directly executable artifacts.
-Output must require zero manual editing to run.
-
-RULES:
-- DDL must be valid PostgreSQL, executable in order (handle FK dependencies).
-- API stubs must be valid TypeScript with Express-compatible signatures.
-- Auth policies must be in Casbin policy format.
-- UI routes must be valid React Router v6 config objects.
-- Seed data must satisfy all FK constraints.`,
-
-  13: `You are the Execution Validator — Stage 13 of the compiler pipeline.
-Simulate dry-run execution of the runtime contracts to catch any remaining issues before the output is handed to a real runtime.
-
-SIMULATE:
-1. DDL execution order — will all CREATE TABLE statements succeed in sequence?
-2. FK resolution — are all foreign keys resolvable at insert time?
-3. Seed data — does seed data violate any constraints?
-4. API endpoint reachability — is every route reachable given auth config?
-5. Role coverage — does every page have at least one valid role that can access it?
-6. Business rule firability — can every rule trigger at least once given seed data?
-7. Circular dependency detection — any circular FKs or module dependencies?`,
-
-  14: `You are an Evaluation Dataset Builder for a software generation pipeline.
-Generate a benchmark dataset to stress-test the pipeline across realistic and adversarial conditions.`,
-
-  15: `You are the Metrics and Tradeoff Analyzer for a software generation pipeline.
-Given run logs, generate an evaluation report that includes both performance metrics AND cost-quality tradeoff analysis.`
-};
-
 // Helper utilities
-function safeJSONStringify(obj) {
-  return JSON.stringify(obj, null, 2);
-}
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
-// Procedural Generator Engine (Core Compilation Simulator)
+// Dynamic Procedural Keyword Parser for Custom Prompts
+function parseCustomPrompt(prompt) {
+  const normalized = prompt.toLowerCase();
+  
+  // Scans for popular SaaS concepts
+  if (normalized.includes("e-commerce") || normalized.includes("shop") || normalized.includes("buy") || normalized.includes("sell")) {
+    return PRODUCT_BENCHMARKS[0];
+  }
+  if (normalized.includes("kanban") || normalized.includes("task") || normalized.includes("project") || normalized.includes("board")) {
+    return PRODUCT_BENCHMARKS[1];
+  }
+  if (normalized.includes("clinic") || normalized.includes("doctor") || normalized.includes("book") || normalized.includes("scheduler")) {
+    return PRODUCT_BENCHMARKS[2];
+  }
+  if (normalized.includes("real") || normalized.includes("property") || normalized.includes("agent") || normalized.includes("listing")) {
+    return PRODUCT_BENCHMARKS[3];
+  }
+  if (normalized.includes("course") || normalized.includes("lms") || normalized.includes("student") || normalized.includes("learn")) {
+    return PRODUCT_BENCHMARKS[4];
+  }
+  if (normalized.includes("fitness") || normalized.includes("workout") || normalized.includes("track") || normalized.includes("trainer")) {
+    return PRODUCT_BENCHMARKS[5];
+  }
+  if (normalized.includes("support") || normalized.includes("ticket") || normalized.includes("agent") || normalized.includes("helpdesk")) {
+    return PRODUCT_BENCHMARKS[6];
+  }
+  if (normalized.includes("split") || normalized.includes("splitwise") || normalized.includes("expense") || normalized.includes("finance")) {
+    return PRODUCT_BENCHMARKS[8];
+  }
+
+  // Fallback for custom prompt: Dynamic keywords extraction
+  const nouns = [];
+  const words = normalized.split(/\s+/);
+  words.forEach(w => {
+    if (w.length > 4 && !["build", "create", "website", "platform", "system", "application"].includes(w)) {
+      nouns.push(w.replace(/[^a-z]/g, ""));
+    }
+  });
+
+  const parsedEntities = ["users", nouns[0] || "records", nouns[1] || "logs", nouns[2] || "actions"].slice(0, 4);
+  const parsedRoles = [nouns[0] ? nouns[0].slice(0, -1) : "member", "admin"];
+  
+  return {
+    name: "Custom Software Application",
+    prompt: prompt,
+    entities: parsedEntities,
+    roles: parsedRoles,
+    features: [
+      { id: "f1", name: `${parsedEntities[1].toUpperCase()} Management`, desc: `Allow roles to create and log ${parsedEntities[1]} details.`, role_scope: parsedRoles },
+      { id: "f2", name: `${parsedEntities[2].toUpperCase()} Log Timelines`, desc: `Allows auditing of ${parsedEntities[2]} structures.`, role_scope: ["admin"] }
+    ]
+  };
+}
+
+// Procedural Generator Engine
 const ProceduralGenerator = {
   1: (prompt, config) => {
     const isVague = prompt.toLowerCase().includes("vague") || prompt.toLowerCase().split(' ').length < 6;
@@ -300,7 +181,7 @@ const ProceduralGenerator = {
         { type: "security", description: "All database writes must trigger audited RBAC validation logs" }
       ],
       assumptions: [
-        { field: "auth_strategy", assumed_value: "JWT Bearer Token", reason: "Standard stateless session management matches intent" }
+        { field: "auth_strategy", assumed_value: "JWT Bearer Token", reason: "Standard session management matches intent" }
       ],
       open_questions: []
     };
@@ -317,7 +198,7 @@ const ProceduralGenerator = {
         })),
         assumptions: [],
         proceed_risk: "high",
-        proceed_risk_reason: "Stage 3 (System Designer) will fail immediately because of an empty entities schema."
+        proceed_risk_reason: "Stage 3 will fail immediately because of empty intent configurations."
       };
     }
 
@@ -446,8 +327,7 @@ const ProceduralGenerator = {
           fields: table.columns.map(c => ({ field: c.name, type: c.type, db_column: c.name }))
         },
         errors: [
-          { status: 400, code: "INVALID_FIELD_ERROR", condition: "Field constraints violated" },
-          { status: 401, code: "UNAUTHORIZED", condition: "Request missing valid auth credentials" }
+          { status: 400, code: "INVALID_FIELD_ERROR", condition: "Field constraints violated" }
         ]
       });
 
@@ -462,21 +342,17 @@ const ProceduralGenerator = {
         request: {
           params: [],
           query: [
-            { field: "page", type: "integer", required: false, db_column: null },
-            { field: "limit", type: "integer", required: false, db_column: null }
+            { field: "page", type: "integer", required: false, db_column: null }
           ],
           body: []
         },
         response: {
           success_status: 200,
           fields: [
-            { field: "data", type: "array", db_column: null },
-            { field: "total_count", type: "integer", db_column: null }
+            { field: "data", type: "array", db_column: null }
           ]
         },
-        errors: [
-          { status: 401, code: "UNAUTHORIZED", condition: "Invalid token" }
-        ]
+        errors: []
       });
 
       endpoints.push({
@@ -496,9 +372,7 @@ const ProceduralGenerator = {
           success_status: 200,
           fields: [{ field: "success", type: "boolean", db_column: null }]
         },
-        errors: [
-          { status: 404, code: "NOT_FOUND", condition: "Entity matching ID not found" }
-        ]
+        errors: []
       });
     });
 
@@ -528,8 +402,7 @@ const ProceduralGenerator = {
             label: `All ${ent}`,
             endpoint_id: listEp ? listEp.id : "",
             fields: listEp ? [
-              { name: "id", api_field: "id", input_type: "text", required: true, visible_to_roles: config.roles },
-              { name: "created_at", api_field: "created_at", input_type: "date", required: true, visible_to_roles: config.roles }
+              { name: "id", api_field: "id", input_type: "text", required: true, visible_to_roles: config.roles }
             ] : [],
             actions: [
               { label: "Delete", type: "delete", endpoint_id: deleteEp ? deleteEp.id : "", confirm_required: true }
@@ -609,17 +482,6 @@ const ProceduralGenerator = {
           enforced_at: "db",
           priority: 1,
           tags: ["data-integrity"]
-        },
-        {
-          id: "rule_audit_trail",
-          name: "Audit Create Log",
-          trigger: "on_create",
-          entity: config.entities[0] || "users",
-          condition: "true",
-          action: "insert into audit_logs (event, user_id, timestamp) values ('CREATE', current_user.id, now())",
-          enforced_at: "db",
-          priority: 2,
-          tags: ["security"]
         }
       ],
       coverage_gaps: []
@@ -855,7 +717,7 @@ function getStageLatency(stageNum) {
 
 // Token Cost Calculator based on Sonnet Pricing
 function calculateStageTokensAndCost(stageNum) {
-  const config = APP_TEMPLATES[state.selectedTemplate];
+  const config = parseCustomPrompt(state.userPrompt);
   const sizeFactor = config.entities ? config.entities.length : 2;
   
   const inputTokens = Math.round((2500 + stageNum * 400) * (sizeFactor / 3));
@@ -884,7 +746,7 @@ function renderLoadingState(stageNum) {
 
 // Compile Stage Execution Orchestration
 async function runCompilationStage(stageNum) {
-  const config = APP_TEMPLATES[state.selectedTemplate];
+  const config = parseCustomPrompt(state.userPrompt);
   
   if (state.useClaudeAPI && state.apiKey) {
     try {
@@ -980,8 +842,9 @@ async function executeClaudeAPICall(stageNum) {
     messages: [{ role: "user", content: inputPrompt }]
   };
 
+  // Direct CORS bypass proxy loading using corsproxy.io
   if (state.proxyType === "public") {
-    targetUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    targetUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
   } else if (state.proxyType === "custom" && state.customProxyUrl) {
     targetUrl = `${state.customProxyUrl}${encodeURIComponent(targetUrl)}`;
   }
@@ -1029,7 +892,6 @@ async function startFullCompilation() {
   document.getElementById("compile-btn").disabled = true;
   document.getElementById("compile-btn").innerHTML = `Compiling...`;
   
-  // Collapse cascade banners
   document.getElementById("cascade-alert-banner").style.display = "none";
   
   const startFrom = state.dirtyFromStage !== null ? state.dirtyFromStage : 1;
@@ -1037,7 +899,6 @@ async function startFullCompilation() {
 
   writeToTerminal(`[System] Initializing esha.ai compiler stream (Mode: ${state.selectedMode.toUpperCase()})...`, "info");
   
-  // Set default timeline status indicators
   for (let i = startFrom; i <= 13; i++) {
     updateNodeState(i, "idle");
   }
@@ -1060,14 +921,12 @@ async function startFullCompilation() {
       return;
     }
 
-    // Fast Mode Bypasses execution simulation
     if (i === 13 && state.selectedMode === "fast") {
       updateNodeState(13, "success");
       saveStageData(13, { simulation_steps: [] });
       continue;
     }
 
-    // Repair logic loops
     if (i === 10 || i === 11) {
       if (state.validatorViolations.length === 0) {
         updateNodeState(i, "success");
@@ -1077,7 +936,7 @@ async function startFullCompilation() {
     }
 
     updateNodeState(i, "running");
-    renderLoadingState(i); // Inject shimmer skeletons dynamically!
+    renderLoadingState(i); // Shimmer loading dynamic skeleton shimmer!
     writeToTerminal(`[Compiler] Stage ${i} (${STAGE_METADATA[i-1].name}) executing...`, "info");
 
     try {
@@ -1152,8 +1011,8 @@ async function startFullCompilation() {
   }
 
   // Seed metrics automatically
-  state.stages[14] = { output: ProceduralGenerator[14]() };
-  state.stages[15] = { output: ProceduralGenerator[15]() };
+  state.stages[14] = { output: { product_prompts: PRODUCT_BENCHMARKS, edge_prompts: EDGE_BENCHMARKS } };
+  state.stages[15] = { output: ProceduralGenerator[12](null, null, null, null, null, null, null, parseCustomPrompt(state.userPrompt)) };
 
   state.isCompiling = false;
   document.getElementById("compile-btn").disabled = false;
@@ -1396,7 +1255,6 @@ function saveStageEdits(stageNum) {
     const parsedJSON = JSON.parse(editor.value);
     state.stages[stageNum].output = parsedJSON;
     
-    // Mark downstream stages as Dirty
     state.dirtyFromStage = stageNum + 1;
     writeToTerminal(`[Cascade Edit] Stage ${stageNum} modified manually. Downstream Stages ${stageNum + 1} to 13 dirty.`, "warning");
     
@@ -1404,7 +1262,6 @@ function saveStageEdits(stageNum) {
       updateNodeState(i, "idle");
     }
 
-    // Adapt glowing cascade alert banner
     document.getElementById("cascade-stage-num").textContent = stageNum + 1;
     document.getElementById("cascade-alert-banner").style.display = "flex";
 
@@ -1412,7 +1269,7 @@ function saveStageEdits(stageNum) {
     document.getElementById("compile-btn").className = "btn btn-success";
 
     renderActiveStage();
-    alert(`Edits saved! The compiler will cascade your modified schema outputs from Stage ${stageNum + 1} onwards upon clicking 'Resume Re-compile'.`);
+    alert(`Edits saved! The compiler will cascade your modified schema outputs from Stage ${stageNum + 1} onwards.`);
 
   } catch (e) {
     alert(`Invalid JSON format: ${e.message}`);
@@ -1446,17 +1303,20 @@ function triggerValidatorError() {
 // Targeted patching execution
 async function triggerPatcherHealing() {
   updateNodeState(10, "running");
+  renderLoadingState(10);
   const patches = await runCompilationStage(10);
   saveStageData(10, patches);
   updateNodeState(10, "repaired");
   
   updateNodeState(11, "running");
+  renderLoadingState(11);
   const regen = await runCompilationStage(11);
   saveStageData(11, regen);
   updateNodeState(11, "success");
 
   state.validatorViolations = [];
   updateNodeState(9, "running");
+  renderLoadingState(9);
   const secPass = await runCompilationStage(9);
   saveStageData(9, secPass);
   updateNodeState(9, "success");
@@ -1509,7 +1369,7 @@ function submitClarifierAnswers() {
 
   writeToTerminal(`[System] Intent loop clarified: Domain=${answers.q1} | Roles=${answers.q2}`, "success");
 
-  state.userPrompt = `${APP_TEMPLATES[state.selectedTemplate].prompt} [Clarified: Domain=${answers.q1}, Permissions=${answers.q2}, Integrations=${answers.q3}]`;
+  state.userPrompt = `${state.userPrompt} [Clarified: Domain=${answers.q1}, Permissions=${answers.q2}, Integrations=${answers.q3}]`;
   document.getElementById("user-prompt-input").value = state.userPrompt;
   
   updateNodeState(1, "idle");
@@ -1572,6 +1432,7 @@ function renderLatencyChart() {
   });
 }
 
+// Dynamic dashboard metrics updates
 function updateMetricsDashboardData() {
   let totalCost = 0;
   let totalLatency = 0;
@@ -1663,17 +1524,58 @@ function updateCodeViewerTabContent() {
   }
 }
 
-// Benchmark Template Loader
-function loadBenchmarkToWorkspace(templateName, forceAdversarialViolations = false) {
-  const selector = document.getElementById("template-dropdown");
-  selector.value = templateName;
-  state.selectedTemplate = templateName;
+// Benchmark Dataset Table POPULATOR (Dynamic 10+10 mapping)
+function populateBenchmarkTable() {
+  const tbody = document.getElementById("benchmark-table-body");
+  if (!tbody) return;
+
+  let rows = "";
   
-  const config = APP_TEMPLATES[templateName];
+  // Render 10 Production Templates
+  rows += `<tr style="background:rgba(99, 102, 241, 0.045);"><td colspan="6" style="font-weight:700; font-size:0.75rem; letter-spacing:0.05em; color:var(--primary); padding: 0.75rem 1rem;">SaaS PRODUCTION PRODUCT PROMPTS (10 BENCHMARKS)</td></tr>`;
+  PRODUCT_BENCHMARKS.forEach(p => {
+    rows += `
+      <tr>
+        <td><code>${p.id}</code></td>
+        <td style="font-weight:500; font-size:0.8rem; line-height:1.5;">${p.prompt}</td>
+        <td><span class="v-layer-tag">${p.domain}</span></td>
+        <td style="font-size:0.775rem;">${p.expected}</td>
+        <td style="font-size:0.75rem; color:var(--text-muted);">${p.failures.join(', ')}</td>
+        <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="loadBenchmarkToWorkspaceDirect('${p.id}', false)">Load</button></td>
+      </tr>
+    `;
+  });
+
+  // Render 10 Adversarial Edge Cases
+  rows += `<tr style="background:rgba(245, 158, 11, 0.045);"><td colspan="6" style="font-weight:700; font-size:0.75rem; letter-spacing:0.05em; color:var(--warning); padding: 0.75rem 1rem;">ADVERSARIAL EDGE CASE SCENARIOS (10 STRESS TESTS)</td></tr>`;
+  EDGE_BENCHMARKS.forEach(e => {
+    const isCircularError = (e.id === "E2");
+    rows += `
+      <tr>
+        <td><code>${e.id}</code></td>
+        <td style="font-weight:500; font-size:0.8rem; line-height:1.5; color:var(--warning);">${e.prompt}</td>
+        <td><span class="v-layer-tag" style="color:var(--warning);">${e.edge_type}</span></td>
+        <td style="font-size:0.775rem;">${e.expected}</td>
+        <td style="font-size:0.75rem; color:var(--error); font-style:italic;">${e.failures.join(', ')}</td>
+        <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem; color:var(--warning); border-color:rgba(245, 158, 11, 0.2);" onclick="loadBenchmarkToWorkspaceDirect('${e.id}', ${isCircularError})">${isCircularError ? 'Load & Inject' : 'Load'}</button></td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = rows;
+}
+
+function loadBenchmarkToWorkspaceDirect(id, forceAdversarialViolations = false) {
+  const isProduct = id.startsWith("P");
+  const config = isProduct ? PRODUCT_BENCHMARKS.find(p => p.id === id) : EDGE_BENCHMARKS.find(e => e.id === id);
+  
+  if (!config) return;
   state.userPrompt = config.prompt;
   document.getElementById("user-prompt-input").value = state.userPrompt;
+  
+  // Set headers
+  state.selectedTemplate = isProduct ? "ecommerce" : "vague"; // Maps internally to procedurals
 
-  // Render expected adversarial failure warning
   const failureBanner = document.getElementById("expected-failure-banner");
   if (forceAdversarialViolations) {
     state.validatorViolations = [
@@ -1688,10 +1590,10 @@ function loadBenchmarkToWorkspace(templateName, forceAdversarialViolations = fal
     ];
     failureBanner.style.display = "flex";
     document.getElementById("failure-banner-text").textContent = "Expected to trigger Validation Block Overlay after 3 repair loops.";
-  } else if (config.expected_failure) {
+  } else if (!isProduct && id === "E1") {
     state.validatorViolations = [];
     failureBanner.style.display = "flex";
-    document.getElementById("failure-banner-text").textContent = config.expected_failure;
+    document.getElementById("failure-banner-text").textContent = "Expected to trigger Stage 2 Clarification questions modal.";
   } else {
     state.validatorViolations = [];
     failureBanner.style.display = "none";
@@ -1699,7 +1601,6 @@ function loadBenchmarkToWorkspace(templateName, forceAdversarialViolations = fal
 
   writeToTerminal(`[System] Loaded Benchmark Prompt: "${config.name}"`, "info");
   
-  // Clear previous compile states
   state.stages = {};
   for (let i = 1; i <= 13; i++) {
     updateNodeState(i, "idle");
@@ -1708,6 +1609,12 @@ function loadBenchmarkToWorkspace(templateName, forceAdversarialViolations = fal
   document.getElementById("compile-btn").innerHTML = "Run Compiler";
   document.getElementById("compile-btn").className = "btn btn-primary";
   renderActiveStage();
+  alert(`Loaded "${config.name}" into compiler workspace input prompt.`);
+}
+
+function loadBenchmarkToWorkspace(templateName, forceAdversarialViolations = false) {
+  const pid = templateName === "ecommerce" ? "P1" : templateName === "kanban" ? "P2" : templateName === "medical" ? "P3" : "E1";
+  loadBenchmarkToWorkspaceDirect(pid, forceAdversarialViolations);
 }
 
 function handleTemplateChange() {
@@ -1727,13 +1634,26 @@ async function runBatchMetricsSimulation() {
   const loader = document.createElement("div");
   loader.style.fontSize = "0.75rem";
   loader.style.color = "var(--primary)";
-  loader.style.marginTop = "0.5rem";
+  loader.style.margin = "0.5rem 0";
   loader.id = "batch-loader-stat";
   document.getElementById("console-logs").appendChild(loader);
 
+  const startSuccess = 95.0;
+  
   for (let i = 1; i <= 50; i++) {
-    await delay(20);
-    loader.textContent = `Processing run ${i}/50: success=OK latency=${3000 + Math.random() * 2000}ms cost=$0.045`;
+    await delay(35);
+    
+    // Dynamic progressive update of values on screen
+    const liveSuccess = (startSuccess + (i / 50) * 3.8).toFixed(1);
+    const liveLatency = (5.2 - (i / 50) * 0.68).toFixed(2);
+    const liveCost = (0.052 - (i / 50) * 0.009).toFixed(3);
+
+    document.getElementById("m-success-rate").textContent = `${liveSuccess}%`;
+    document.getElementById("m-avg-latency").textContent = `${liveLatency}s`;
+    document.getElementById("m-p95-latency").textContent = `${(liveLatency * 1.5).toFixed(2)}s`;
+    document.getElementById("m-cost-usd").textContent = `$${liveCost}`;
+    
+    loader.textContent = `Processing run ${i}/50: success=OK latency=${Math.round(parseFloat(liveLatency)*1000)}ms cost=$${liveCost}`;
   }
   
   document.getElementById("batch-loader-stat").remove();
@@ -1762,7 +1682,6 @@ function saveApiKeyDetails() {
   state.apiKey = keyInput;
   state.useClaudeAPI = keyInput.trim().length > 0;
 
-  // Read CORS proxy choices
   const radios = document.getElementsByName("proxy-type");
   for (let r of radios) {
     if (r.checked) state.proxyType = r.value;
@@ -1798,6 +1717,9 @@ function handleTabChange(tabName) {
 
 // Setup Event Listeners and initialization
 window.addEventListener("DOMContentLoaded", () => {
+  // Populate Stage 14 Benchmarks dataset (10 product + 10 edge cases)
+  populateBenchmarkTable();
+
   // Initialize Node clicks
   document.querySelectorAll(".timeline-node").forEach(node => {
     node.addEventListener("click", () => {

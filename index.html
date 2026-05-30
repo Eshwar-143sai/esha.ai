@@ -49,8 +49,8 @@
       <!-- Interactive Sandbox Disclaimer -->
       <div class="info-disclaimer-banner" id="disclaimer-banner">
         <div style="font-size:0.8rem; line-height:1.5;">
-          🚀 <strong>Interactive Playground Mode:</strong> Operating in procedural simulation by default. Switch the <strong>Connect API Key</strong> drawer above to activate live compilation via the Claude 3.5 Sonnet API! 
-          <span style="color:var(--warning); font-weight:600;">CORS Proxying and setup steps are pre-configured in the drawer.</span>
+          🚀 <strong>Interactive Playground Mode:</strong> Operating in procedural simulation by default. Connect your **Claude API Key** in the settings above to stream actual live compilation. 
+          <span style="color:var(--success); font-weight:600;">CORS Proxying is pre-configured and enabled by default to allow out-of-the-box streaming.</span>
         </div>
         <button class="close-banner-btn" onclick="document.getElementById('disclaimer-banner').remove()">×</button>
       </div>
@@ -141,6 +141,22 @@
             <div class="node-status">idle</div>
           </div>
           <div class="timeline-connector" data-from="9"></div>
+
+          <!-- Stage 10 -->
+          <div class="timeline-node" data-id="10">
+            <div class="node-icon-wrapper">10</div>
+            <div class="node-title">Patch Gen</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="10"></div>
+
+          <!-- Stage 11 -->
+          <div class="timeline-node" data-id="11">
+            <div class="node-icon-wrapper">11</div>
+            <div class="node-title">Regenerator</div>
+            <div class="node-status">idle</div>
+          </div>
+          <div class="timeline-connector" data-from="11"></div>
 
           <!-- Stage 12 -->
           <div class="timeline-node" data-id="12">
@@ -235,6 +251,20 @@
               <span class="item-tag">Stage 9: Violations check</span>
             </div>
           </div>
+          <div class="sidebar-item" data-id="10">
+            <span class="item-num">10</span>
+            <div class="item-info">
+              <span class="item-name">Patch Generator</span>
+              <span class="item-tag">Stage 10: Surgical repair</span>
+            </div>
+          </div>
+          <div class="sidebar-item" data-id="11">
+            <span class="item-num">11</span>
+            <div class="item-info">
+              <span class="item-name">Targeted Regenerator</span>
+              <span class="item-tag">Stage 11: Merge patches</span>
+            </div>
+          </div>
           <div class="sidebar-item" data-id="12">
             <span class="item-num">12</span>
             <div class="item-info">
@@ -273,7 +303,7 @@
               </div>
             </div>
             
-            <!-- Col 2: Inputs / Outputs / Simulator -->
+            <!-- Col 2: Inputs -->
             <div class="grid-col">
               <div class="col-header">Compiler Input Payload</div>
               <div class="col-content">
@@ -284,7 +314,7 @@
             </div>
             
             <!-- Col 3: Output Editor / Dashboard Pane -->
-            <div id="stage-output-container" class="grid-col" style="grid-column: span 1;">
+            <div id="stage-output-container" class="grid-col">
               <!-- Dynamic content injected by app.js -->
             </div>
           </div>
@@ -341,53 +371,8 @@
                   <th style="width:120px;">ACTION</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr style="background:rgba(255,255,255,0.015);">
-                  <td colspan="6" style="font-weight:700; font-size:0.75rem; letter-spacing:0.05em; color:var(--primary); padding-top:0.8rem;">SaaS PRODUCTION PROMPTS (TEST GROUP)</td>
-                </tr>
-                <tr>
-                  <td><code>P1</code></td>
-                  <td style="font-weight:500;">Build an e-commerce platform with buyers, sellers, and an admin. Buyers can purchase items and write reviews. Sellers can list items. Admin can ban users and delete reviews.</td>
-                  <td><span class="v-layer-tag">Retail Marketplace</span></td>
-                  <td>Normalize items, reviews, orders tables. Secure checkout routes.</td>
-                  <td>Pay gate failure; Reviews integrity loop.</td>
-                  <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="loadBenchmarkToWorkspace('ecommerce')">Load Prompt</button></td>
-                </tr>
-                <tr>
-                  <td><code>P2</code></td>
-                  <td style="font-weight:500;">Build a collaborative project management board where managers can create workspaces and invite members. Members can add cards, move cards across swimlanes, and attach comments.</td>
-                  <td><span class="v-layer-tag">Kanban Board</span></td>
-                  <td>Swimlanes management; task card transitions; comment threads.</td>
-                  <td>Double slot scheduling conflicts.</td>
-                  <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="loadBenchmarkToWorkspace('kanban')">Load Prompt</button></td>
-                </tr>
-                <tr>
-                  <td><code>P3</code></td>
-                  <td style="font-weight:500;">Create an online clinic booking app. Patients can book sessions with doctors. Doctors can specify slots and prescriptions. Receptionists charge payments.</td>
-                  <td><span class="v-layer-tag">Clinic Booking</span></td>
-                  <td>Doctor schedules; patient slot checkouts; prescriptions ledger.</td>
-                  <td>Circular dependencies in lead assignments.</td>
-                  <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="loadBenchmarkToWorkspace('medical')">Load Prompt</button></td>
-                </tr>
-                <tr style="background:rgba(255,255,255,0.015);">
-                  <td colspan="6" style="font-weight:700; font-size:0.75rem; letter-spacing:0.05em; color:var(--warning); padding-top:0.8rem;">ADVERSARIAL EDGE CASES (STRESS GROUP)</td>
-                </tr>
-                <tr>
-                  <td><code>E1</code></td>
-                  <td style="font-weight:500;">Make a cool website with logs and stuff.</td>
-                  <td><span class="v-layer-tag" style="color:var(--warning);">Vague Intent</span></td>
-                  <td>Set <code>requires_clarification: true</code>. Halts at Stage 2 and displays targeted questions modal.</td>
-                  <td>System Designer fails on empty tables entity specifications.</td>
-                  <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="loadBenchmarkToWorkspace('vague')">Load Prompt</button></td>
-                </tr>
-                <tr>
-                  <td><code>E2</code></td>
-                  <td style="font-weight:500;">Build an e-commerce marketplace where checkout creates review items but reviews require completed checkouts, and reviews can never be written.</td>
-                  <td><span class="v-layer-tag" style="color:var(--warning);">Conflicting Logic</span></td>
-                  <td>Validator catches contradictory checkout-review circular flow. Triggers targeted JSONPatches.</td>
-                  <td>Infinite validation compile loops.</td>
-                  <td><button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="loadBenchmarkToWorkspace('ecommerce', true)">Load & Inject</button></td>
-                </tr>
+              <tbody id="benchmark-table-body">
+                <!-- Dynamically populated 10+10 by app.js -->
               </tbody>
             </table>
           </div>
@@ -509,10 +494,10 @@
           <label style="display:block; font-size:0.8rem; font-weight:600; text-transform:uppercase; margin-bottom:0.5rem; color:var(--text-muted);">CORS Proxy Configuration</label>
           <div style="display:flex; flex-direction:column; gap:0.5rem;">
             <label style="font-size:0.825rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-              <input type="radio" name="proxy-type" value="direct" checked> Direct Request (requires "Allow CORS" browser extension)
+              <input type="radio" name="proxy-type" value="direct"> Direct Request (requires CORS browser configuration)
             </label>
             <label style="font-size:0.825rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-              <input type="radio" name="proxy-type" value="public"> Use Public CORS Proxy (AllOrigins)
+              <input type="radio" name="proxy-type" value="public" checked> Use Transparent Public CORS Proxy (corsproxy.io)
             </label>
             <label style="font-size:0.825rem; display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
               <input type="radio" name="proxy-type" value="custom"> Custom Proxy URL
@@ -522,8 +507,7 @@
         </div>
 
         <div style="background:rgba(99,102,241,0.05); padding:1rem; border-radius:var(--radius-md); border:1px solid rgba(99,102,241,0.2); font-size:0.8rem; line-height:1.5;">
-          💡 <strong>How to Bypassing CORS Easily:</strong> 
-          <br>Direct client-side fetch is blocked by standard browser policies. To bypass this instantly without configuring proxies, install the extension <strong>Allow CORS: Access-Control-Allow-Origin</strong> from the Chrome Store and toggle it ON before compiling.
+          💡 <strong>Out-of-the-box compile enabled:</strong> The default public CORS proxy is pre-selected and works instantly on client-side JS without requiring any chrome extensions or server setups!
         </div>
       </div>
       <div class="modal-footer">
