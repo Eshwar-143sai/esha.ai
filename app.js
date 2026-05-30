@@ -82,6 +82,20 @@ const state = {
   dirtyFromStage: null
 };
 
+// Expose state and functions globally for scope safety in HTML handlers
+window.state = state;
+
+function triggerBottomCompile() {
+  const input = document.getElementById("user-prompt-input");
+  if (input) {
+    state.userPrompt = input.value;
+  }
+  startFullCompilation();
+}
+
+window.triggerBottomCompile = triggerBottomCompile;
+window.startFullCompilation = startFullCompilation;
+
 /// Helper utilities
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
