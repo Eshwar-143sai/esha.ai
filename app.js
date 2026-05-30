@@ -890,6 +890,10 @@ async function runCompilationStage(stageNum) {
       );
     case 13:
       return ProceduralGenerator[13](state.stages[12].output);
+    case 14:
+      return { product_prompts: PRODUCT_BENCHMARKS, edge_prompts: EDGE_BENCHMARKS };
+    case 15:
+      return state.metrics;
   }
 }
 
@@ -1005,13 +1009,13 @@ async function startFullCompilation() {
 
   writeToTerminal(`[System] Initializing esha.ai compiler stream (Mode: ${state.selectedMode.toUpperCase()})...`, "info");
   
-  for (let i = startFrom; i <= 13; i++) {
+  for (let i = startFrom; i <= 15; i++) {
     updateNodeState(i, "idle");
   }
 
   state.repairAttempts = 0; // Reset retry counter
 
-  for (let i = startFrom; i <= 13; i++) {
+  for (let i = startFrom; i <= 15; i++) {
     // Stage 2 Clarification Intercept
     if (i === 2 && state.stages[1].output.requires_clarification) {
       updateNodeState(2, "running");
@@ -1259,6 +1263,44 @@ function renderActiveStage() {
   // Render Output
   const outputContainer = document.getElementById("stage-output-container");
   
+  if (stageNum === 14) {
+    handleTabChange('datasets');
+    outputContainer.innerHTML = `
+      <div class="col-header">Stage 14: Evaluation Dataset</div>
+      <div class="col-content" style="display:flex; flex-direction:column; gap:1rem; padding:1.25rem;">
+        <div style="background:rgba(99, 102, 241, 0.08); border:1px solid rgba(99, 102, 241, 0.2); padding:1rem; border-radius:var(--radius-md); text-align:center;">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">📋</div>
+          <div style="font-weight:700; color:var(--primary); margin-bottom:0.25rem;">Benchmark Dataset Loaded</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">Explore the complete 10 SaaS templates and 10 adversarial edge cases in the tab below.</div>
+        </div>
+        <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-top:0.5rem;">Dataset Output (JSON)</div>
+        <div class="code-container" style="flex-grow:1; height:180px;">
+          <pre class="code-viewer">${safeJSONStringify(stageData ? stageData.output : { product_prompts: PRODUCT_BENCHMARKS, edge_prompts: EDGE_BENCHMARKS })}</pre>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (stageNum === 15) {
+    handleTabChange('metrics');
+    outputContainer.innerHTML = `
+      <div class="col-header">Stage 15: Tradeoff Analyzer</div>
+      <div class="col-content" style="display:flex; flex-grow:1; display:flex; flex-direction:column; gap:1rem; padding:1.25rem;">
+        <div style="background:rgba(6, 182, 212, 0.08); border:1px solid rgba(6, 182, 212, 0.2); padding:1rem; border-radius:var(--radius-md); text-align:center;">
+          <div style="font-size:2rem; margin-bottom:0.5rem;">📊</div>
+          <div style="font-weight:700; color:var(--info); margin-bottom:0.25rem;">Tradeoff Dashboard Loaded</div>
+          <div style="font-size:0.8rem; color:var(--text-muted);">Audit pipeline success parameters, parallelization stats, and cost structures in the tab below.</div>
+        </div>
+        <div style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-top:0.5rem;">Tradeoffs Output (JSON)</div>
+        <div class="code-container" style="flex-grow:1; height:180px;">
+          <pre class="code-viewer">${safeJSONStringify(stageData ? stageData.output : state.metrics)}</pre>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   if (stageNum === 9) {
     renderValidatorDashboard(outputContainer, stageData ? stageData.output : null);
     return;
@@ -1618,7 +1660,7 @@ function renderLatencyChart() {
 
   container.innerHTML = "";
   
-  STAGE_METADATA.slice(0, 13).forEach(meta => {
+  STAGE_METADATA.slice(0, 15).forEach(meta => {
     const metric = state.stageMetrics[meta.id];
     const latency = metric ? metric.latency : 0;
     const cost = metric ? metric.cost : 0;
