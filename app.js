@@ -259,6 +259,11 @@ const ProceduralGenerator = {
       };
     }
 
+    const features = config.features || [
+      { id: "f1", name: `${(config.entities[1] || "records").toUpperCase()} Management`, desc: `Allow roles to create and log ${config.entities[1] || "records"} details.`, role_scope: config.roles },
+      { id: "f2", name: `${(config.entities[2] || "logs").toUpperCase()} Auditing`, desc: `Allows reviewing and editing of ${config.entities[2] || "logs"} structures.`, role_scope: ["admin"] }
+    ];
+
     return {
       app_name: config.name,
       summary: `Automated compiler intent specification for ${config.name}.`,
@@ -272,7 +277,7 @@ const ProceduralGenerator = {
         name: r,
         permissions_summary: `Authorized to perform actions relevant to the ${r} persona`
       })),
-      features: config.features,
+      features: features,
       constraints: [
         { type: "security", description: "All database writes must trigger audited RBAC validation logs" }
       ],
@@ -831,8 +836,6 @@ function renderLoadingState(stageNum) {
       </div>
     `;
   }
-}
-
 }
 
 // Compile Stage Execution Orchestration
