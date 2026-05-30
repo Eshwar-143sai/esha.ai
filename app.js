@@ -785,20 +785,22 @@ function getStageLatency(stageNum) {
   }
   
   switch (stageNum) {
-    case 1: return 850 * multiplier;
-    case 2: return 400 * multiplier;
-    case 3: return 750 * multiplier;
-    case 4: return 600 * multiplier;
-    case 5: return 500 * multiplier;
-    case 6: return 500 * multiplier;
-    case 7: return 500 * multiplier;
-    case 8: return 500 * multiplier;
-    case 9: return 450 * multiplier;
-    case 10: return 600 * multiplier;
-    case 11: return 650 * multiplier;
-    case 12: return 800 * multiplier;
-    case 13: return 500 * multiplier;
-    default: return 300 * multiplier;
+    case 1: return 300 * multiplier;
+    case 2: return 150 * multiplier;
+    case 3: return 250 * multiplier;
+    case 4: return 200 * multiplier;
+    case 5: return 150 * multiplier;
+    case 6: return 150 * multiplier;
+    case 7: return 150 * multiplier;
+    case 8: return 150 * multiplier;
+    case 9: return 150 * multiplier;
+    case 10: return 200 * multiplier;
+    case 11: return 200 * multiplier;
+    case 12: return 250 * multiplier;
+    case 13: return 200 * multiplier;
+    case 14: return 100 * multiplier;
+    case 15: return 100 * multiplier;
+    default: return 100 * multiplier;
   }
 }
 
