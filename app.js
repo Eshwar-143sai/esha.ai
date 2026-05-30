@@ -1,5 +1,5 @@
 // esha.ai - Compiler Pipeline Simulator & Playground Core
-// Powered by modern ESM and reactive vanilla state management
+// Powered by modern ESM, JSZip, and reactive vanilla state management
 
 const STAGE_METADATA = [
   { id: 1, name: "Intent Extractor", tag: "Stage 1", desc: "NL Request → Intent JSON" },
@@ -19,7 +19,7 @@ const STAGE_METADATA = [
   { id: 15, name: "Tradeoff Analyzer", tag: "Stage 15", desc: "Cost, Latency & Skip Optimization" }
 ];
 
-// App Templates (Preloaded procedural states to guarantee realistic JSON cascades)
+// App Templates
 const APP_TEMPLATES = {
   ecommerce: {
     name: "SaaS E-Commerce Platform",
@@ -30,7 +30,8 @@ const APP_TEMPLATES = {
       { id: "f1", name: "Item Listing", desc: "Sellers list items with pricing", role_scope: ["seller"] },
       { id: "f2", name: "Checkout Cart", desc: "Buyers purchase multiple items", role_scope: ["buyer"] },
       { id: "f3", name: "User Review System", desc: "Buyers review items, admin can delete reviews", role_scope: ["buyer", "admin"] }
-    ]
+    ],
+    expected_failure: null
   },
   kanban: {
     name: "Kanban Task Management",
@@ -41,7 +42,8 @@ const APP_TEMPLATES = {
       { id: "f1", name: "Workspace Creation", desc: "Managers create and invite", role_scope: ["manager"] },
       { id: "f2", name: "Task Card Movements", desc: "Members update swimlane states", role_scope: ["manager", "member"] },
       { id: "f3", name: "Card Comment Threads", desc: "Collaborators post comments", role_scope: ["manager", "member"] }
-    ]
+    ],
+    expected_failure: null
   },
   medical: {
     name: "Medical Clinic Appointment Scheduler",
@@ -53,14 +55,16 @@ const APP_TEMPLATES = {
       { id: "f2", name: "Appointment Booking", desc: "Patients book clinic slots", role_scope: ["patient"] },
       { id: "f3", name: "E-Prescriptions", desc: "Doctors submit e-prescriptions", role_scope: ["doctor"] },
       { id: "f4", name: "Payment Receipts", desc: "Receptionists invoice patients", role_scope: ["receptionist"] }
-    ]
+    ],
+    expected_failure: null
   },
   vague: {
     name: "Vague Prompt (Triggers Stage 2 Loop)",
     prompt: "Make a cool website with logs and stuff.",
     entities: [],
     roles: [],
-    features: []
+    features: [],
+    expected_failure: "Expected to trigger Stage 2 Clarification required loop. Pipeline halts and presents visual clarification form questions."
   }
 };
 
@@ -68,17 +72,19 @@ const APP_TEMPLATES = {
 const state = {
   activeStage: 1,
   selectedTemplate: "ecommerce",
+  selectedMode: "reliable", // fast | reliable | debug
   isCompiling: false,
   useClaudeAPI: false,
   apiKey: "",
+  proxyType: "direct", // direct | public | custom
+  customProxyUrl: "",
   userPrompt: APP_TEMPLATES.ecommerce.prompt,
   stages: {},
   validatorViolations: [],
-  clarifierAnswers: {
-    q1: "",
-    q2: "",
-    q3: ""
-  },
+  repairAttempts: 0,
+  maxRepairAttempts: 3,
+  clarifierAnswers: { q1: "", q2: "", q3: "" },
+  stageMetrics: {}, // Tracks latency, tokens, cost per run
   metrics: {
     successRate: 98.4,
     avgLatency: 4850,
@@ -89,11 +95,6 @@ const state = {
   },
   dirtyFromStage: null
 };
-
-// Helper: Format JSON safely
-function safeJSONStringify(obj) {
-  return JSON.stringify(obj, null, 2);
-}
 
 // System Prompts loaded directly from the spec
 const SYSTEM_PROMPTS = {
@@ -251,8 +252,13 @@ Generate a benchmark dataset to stress-test the pipeline across realistic and ad
 Given run logs, generate an evaluation report that includes both performance metrics AND cost-quality tradeoff analysis.`
 };
 
+// Helper utilities
+function safeJSONStringify(obj) {
+  return JSON.stringify(obj, null, 2);
+}
+const delay = ms => new Promise(res => setTimeout(res, ms));
+
 // Procedural Generator Engine (Core Compilation Simulator)
-// Produces 100% syntactically correct outputs matching schemas exactly based on user input
 const ProceduralGenerator = {
   1: (prompt, config) => {
     const isVague = prompt.toLowerCase().includes("vague") || prompt.toLowerCase().split(' ').length < 6;
@@ -276,7 +282,6 @@ const ProceduralGenerator = {
       };
     }
 
-    // Standard high-fidelity generation
     return {
       app_name: config.name,
       summary: `Automated compiler intent specification for ${config.name}.`,
@@ -369,9 +374,6 @@ const ProceduralGenerator = {
 
   4: (architecture, config) => {
     const warnings = [];
-    if (!config.entities || config.entities.length === 0) {
-      warnings.push("No entities mapped from system architecture.");
-    }
     const tables = config.entities.map(ent => {
       const isUser = ent === "users";
       const columns = [
@@ -421,7 +423,6 @@ const ProceduralGenerator = {
     dbSchema.tables.forEach(table => {
       const allowedRoles = config.roles.map(r => r);
       
-      // Create endpoint
       endpoints.push({
         id: `ep_create_${table.name}`,
         path: `/api/v1/${table.name}`,
@@ -450,7 +451,6 @@ const ProceduralGenerator = {
         ]
       });
 
-      // List endpoint
       endpoints.push({
         id: `ep_list_${table.name}`,
         path: `/api/v1/${table.name}`,
@@ -479,7 +479,6 @@ const ProceduralGenerator = {
         ]
       });
 
-      // Delete endpoint (Soft-Delete)
       endpoints.push({
         id: `ep_delete_${table.name}`,
         path: `/api/v1/${table.name}/:id`,
@@ -566,7 +565,7 @@ const ProceduralGenerator = {
     const roles = config.roles.map(r => ({
       id: `role_${r}`,
       name: r,
-      inherits_from: r === "admin" ? null : null,
+      inherits_from: null,
       description: `Fine-grained authorization context for ${r} users`
     }));
 
@@ -627,38 +626,13 @@ const ProceduralGenerator = {
     };
   },
 
-  9: (intent, architecture, ui, api, db, auth, logic, forceViolation = false) => {
-    if (forceViolation) {
+  9: (intent, architecture, ui, api, db, auth, logic, activeViolations = []) => {
+    if (activeViolations.length > 0) {
       return {
         status: "FAIL",
-        error_count: 2,
-        warning_count: 1,
-        violations: [
-          {
-            id: "viol_ui_field_mismatch",
-            layer: "ui",
-            severity: "error",
-            description: "UI Component Form Field 'discount_code' references endpoint 'ep_create_orders', but the API endpoint schema is missing the 'discount_code' request body field.",
-            affected_ids: ["comp_orders_form", "ep_create_orders"],
-            suggested_fix: "Add the 'discount_code' request parameter field to the API Generator endpoint definition, or remove it from the UI component form."
-          },
-          {
-            id: "viol_api_db_mismatch",
-            layer: "api",
-            severity: "error",
-            description: "API Endpoint 'ep_create_orders' references DB table column 'discount_code', but the database schema lacks a 'discount_code' column in table 'orders'.",
-            affected_ids: ["ep_create_orders", "tb_orders"],
-            suggested_fix: "Add a nullable varchar column 'discount_code' to the database schema for the 'orders' table."
-          },
-          {
-            id: "viol_auth_missing_policy",
-            layer: "auth",
-            severity: "warning",
-            description: "API Endpoint 'ep_delete_users' has no RBAC validation policy assigned.",
-            affected_ids: ["ep_delete_users"],
-            suggested_fix: "Add a default-deny policy rule mapping 'role_admin' for the 'ep_delete_users' endpoint."
-          }
-        ],
+        error_count: activeViolations.filter(v => v.severity === "error").length,
+        warning_count: activeViolations.filter(v => v.severity === "warning").length,
+        violations: activeViolations,
         coverage_summary: {
           entities_covered: intent.entities ? intent.entities.length : 0,
           endpoints_covered: api.endpoints ? api.endpoints.length : 0,
@@ -684,9 +658,11 @@ const ProceduralGenerator = {
     };
   },
 
-  10: (violations) => {
+  10: (violations, isUnpatchable = false) => {
     return {
       patches: violations.map((viol, index) => {
+        const requiresHuman = isUnpatchable || viol.id === "viol_circular_logic";
+        
         if (viol.id === "viol_ui_field_mismatch") {
           return {
             violation_id: viol.id,
@@ -700,7 +676,7 @@ const ProceduralGenerator = {
               db_column: "discount_code"
             },
             requires_human: false,
-            note: "Automatically appended the missing field to the API Endpoint specification."
+            note: "Automatically appended missing field mapping to API endpoints."
           };
         } else if (viol.id === "viol_api_db_mismatch") {
           return {
@@ -716,7 +692,7 @@ const ProceduralGenerator = {
               unique: false
             },
             requires_human: false,
-            note: "Injected a nullable column 'discount_code' to SQL DDL tables schema."
+            note: "Injected nullable field to PostgreSQL relational schemas."
           };
         } else {
           return {
@@ -731,36 +707,33 @@ const ProceduralGenerator = {
               effect: "allow",
               conditions: []
             },
-            requires_human: false,
-            note: "Secured raw endpoint with explicit admin-only access policies."
+            requires_human: requiresHuman,
+            note: requiresHuman ? "Unpatchable circular logical dependency discovered." : "Secured endpoint access credentials mapped."
           };
         }
       }),
-      unpatchable: []
+      unpatchable: isUnpatchable ? violations : []
     };
   },
 
   11: (patches, layers) => {
     const updatedLayers = JSON.parse(JSON.stringify(layers));
     const logs = patches.map(p => {
-      // Procedurally merge values to show surgical patch application
+      if (p.requires_human) return { violation_id: p.violation_id, patch_applied: false, result: "Skipped - requires human review." };
+      
       if (p.target_layer === "api" && updatedLayers.api && updatedLayers.api.endpoints) {
         const ep = updatedLayers.api.endpoints.find(e => e.id === "ep_create_orders");
-        if (ep) {
-          ep.request.body.push(p.value);
-        }
+        if (ep) ep.request.body.push(p.value);
       } else if (p.target_layer === "db" && updatedLayers.db && updatedLayers.db.tables) {
         const tb = updatedLayers.db.tables.find(t => t.id === "tb_orders");
-        if (tb) {
-          tb.columns.push(p.value);
-        }
+        if (tb) tb.columns.push(p.value);
       } else if (p.target_layer === "auth" && updatedLayers.auth && updatedLayers.auth.policies) {
         updatedLayers.auth.policies.push(p.value);
       }
       return {
         violation_id: p.violation_id,
         patch_applied: true,
-        result: `Successfully patched ${p.target_layer} Layer: ${p.op} operation applied at path ${p.path}.`
+        result: `Successfully patched ${p.target_layer}: ${p.op} applied at ${p.path}.`
       };
     });
 
@@ -772,11 +745,7 @@ const ProceduralGenerator = {
 
   12: (intent, architecture, ui, api, db, auth, logic, config) => {
     const entities = config.entities;
-    
-    // 1. Generate Valid DDL
-    let ddl = `-- ESHA.AI Runtime Relational Contract Schema
--- Generated: ${new Date().toISOString()}
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";\n\n`;
+    let ddl = `-- ESHA.AI Runtime Relational Contract Schema\nCREATE EXTENSION IF NOT EXISTS "uuid-ossp";\n\n`;
 
     entities.forEach(ent => {
       const isUser = ent === "users";
@@ -795,59 +764,35 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";\n\n`;
       ddl += `);\n\n`;
     });
 
-    // 2. Generate Seed SQL
-    let seed = `-- ESHA.AI Relational Seeding
-INSERT INTO "users" ("id", "email", "role") VALUES
+    let seed = `-- ESHA.AI Relational Seeding\nINSERT INTO "users" ("id", "email", "role") VALUES
   ('11111111-1111-1111-1111-111111111111', 'admin@esha.ai', 'admin'),
   ('22222222-2222-2222-2222-222222222222', 'developer@esha.ai', '${config.roles[1] || "developer"}');\n\n`;
 
     if (entities[1]) {
       seed += `INSERT INTO "${entities[1]}" ("id", "name", "user_id") VALUES
-  ('33333333-3333-3333-3333-333333333333', 'Sample Entry A', '22222222-2222-2222-2222-222222222222'),
-  ('44444444-4444-4444-4444-444444444444', 'Sample Entry B', '22222222-2222-2222-2222-222222222222');\n`;
+  ('33333333-3333-3333-3333-333333333333', 'Sample Entry A', '22222222-2222-2222-2222-222222222222');\n`;
     }
 
-    // 3. API typescript
     let apiTypes = `/* TypeScript Express Stubs & Types - Runtime Contracts */\n`;
     entities.forEach(ent => {
       const typeName = ent.charAt(0).toUpperCase() + ent.slice(1, -1);
-      apiTypes += `export interface ${typeName} {\n  id: string;\n  created_at: Date;\n  updated_at: Date;\n  deleted_at?: Date;\n`;
-      if (ent === "users") {
-        apiTypes += `  email: string;\n  role: string;\n`;
-      } else {
-        apiTypes += `  name: string;\n  user_id: string;\n`;
-      }
-      apiTypes += `}\n\n`;
+      apiTypes += `export interface ${typeName} {\n  id: string;\n  created_at: Date;\n  user_id: string;\n}\n\n`;
     });
 
-    let apiStubs = `import express, { Request, Response } from 'express';\nconst router = express.Router();\n\n`;
+    let apiStubs = `import express from 'express';\nconst router = express.Router();\n`;
     entities.forEach(ent => {
-      apiStubs += `// Create ${ent}\nrouter.post('/api/v1/${ent}', async (req: Request, res: Response) => {\n  // Access control check\n  // Execute DB insertion\n  res.status(201).json({ success: true });\n});\n\n`;
-      apiStubs += `// List ${ent}\nrouter.get('/api/v1/${ent}', async (req: Request, res: Response) => {\n  res.status(200).json({ data: [] });\n});\n\n`;
+      apiStubs += `// List ${ent}\nrouter.get('/api/v1/${ent}', async (req, res) => {\n  res.status(200).json({ data: [] });\n});\n`;
     });
 
-    // 4. Casbin Policy
-    let casbinModel = `[request_definition]
-r = sub, obj, act
-
-[policy_definition]
-p = sub, obj, act
-
-[policy_effect]
-e = some(where (p.eft == allow))
-
-[matchers]
-m = r.sub == p.sub && r.obj == p.obj && r.act == p.act`;
+    let casbinModel = `[request_definition]\nr = sub, obj, act\n[policy_definition]\np = sub, obj, act\n[policy_effect]\ne = some(where (p.eft == allow))\n[matchers]\nm = r.sub == p.sub && r.obj == p.obj && r.act == p.act`;
 
     const casbinPolicies = [];
     config.roles.forEach(role => {
       entities.forEach(ent => {
         casbinPolicies.push({ role: role, resource: `/api/v1/${ent}`, action: "GET", effect: "allow" });
-        casbinPolicies.push({ role: "admin", resource: `/api/v1/${ent}`, action: "*", effect: "allow" });
       });
     });
 
-    // 5. UI Routes
     const uiRoutes = config.entities.map(ent => ({
       path: `/${ent}`,
       component: `${ent.charAt(0).toUpperCase() + ent.slice(1)}DashboardComponent`,
@@ -861,10 +806,8 @@ m = r.sub == p.sub && r.obj == p.obj && r.act == p.act`;
       auth: { casbin_model: casbinModel, policies: casbinPolicies },
       ui: { routes: uiRoutes },
       execution_checklist: [
-        { step: "Database Deployment", command: "psql -h localhost -U postgres -d esha_db -f schema.sql", expected_result: "CREATE TABLE statements succeed in sequence" },
-        { step: "DB Seeding", command: "psql -h localhost -U postgres -d esha_db -f seed.sql", expected_result: "2 users and 2 domain entries inserted cleanly" },
-        { step: "TypeScript Compilation", command: "tsc --noEmit", expected_result: "Zero compilation errors on Express typings" },
-        { step: "Integration Test Suite", command: "npm run test:api", expected_result: "Casbin policies enforced; 100% routes return 200/201" }
+        { step: "Database Deployment", command: "psql -d esha_db -f schema.sql", expected_result: "DDL loaded cleanly" },
+        { step: "TypeScript Audit", command: "tsc --noEmit", expected_result: "Clean types verification compile" }
       ]
     };
   },
@@ -873,73 +816,55 @@ m = r.sub == p.sub && r.obj == p.obj && r.act == p.act`;
     return {
       execution_passed: true,
       simulation_steps: [
-        { step: "DDL Sequential Evaluation", status: "pass", detail: "Database schemas parsed; sequential ordering matches references with no circular dependencies." },
-        { step: "FK Resolution Integrity Check", status: "pass", detail: "Foreign keys validated; referencing elements point to existing identifiers." },
-        { step: "Data Seed Checks", status: "pass", detail: "SQL Seed statements executed on mock relational instance; successfully completed with zero constraint violations." },
-        { step: "API Routing Reachability Audit", status: "pass", detail: "All HTTP methods (GET, POST, DELETE) mapped correctly and are reachable given authentication keys." },
-        { step: "RBAC Role Access Boundaries Check", status: "pass", detail: "Verified user access control limits; unauthorized roles are blocked via Casbin models." }
-      ],
-      errors: [],
-      warnings: [],
-      coverage: {
-        tables_simulated: 3,
-        endpoints_simulated: 9,
-        rules_fired: 2,
-        roles_verified: 3
-      },
-      ready_for_runtime: true
-    };
-  },
-
-  14: () => {
-    return {
-      product_prompts: [
-        { id: "p1", prompt: "Build an e-commerce platform with buyers, sellers, and an admin.", domain: "Retail / Marketplaces", entity_count: 4, complexity: "medium", expected_behavior: "Normalize into items, orders, users, reviews tables with CRUD API paths.", known_failure_modes: ["Infinite order loop", "Circular references in payment logs"] },
-        { id: "p2", prompt: "Build a doctor consultation platform with patients booking video visits.", domain: "Healthcare Scheduling", entity_count: 5, complexity: "high", expected_behavior: "Build calendar bookings, prescriptions, payments, and users models.", known_failure_modes: ["Double bookings", "Data privacy rule failure"] },
-        { id: "p3", prompt: "Create a SaaS CRM to track leads and log contact history.", domain: "Sales & Marketing", entity_count: 3, complexity: "low", expected_behavior: "Leads, accounts, interactions models with basic authorization roles.", known_failure_modes: ["Lead assignment rule circular dependency"] }
-      ],
-      edge_prompts: [
-        { id: "e1", prompt: "Make an app.", edge_type: "vague", expected_behavior: "Compiler triggers Stage 2 Clarification loop modal.", known_failure_modes: ["Stage 3 compiler crash because of empty schema"] },
-        { id: "e2", prompt: "Build a booking app where users can never book slots but slot schedules are always full.", edge_type: "conflicting", expected_behavior: "Validator catches logical contradictions and triggers patch warnings.", known_failure_modes: ["Compilation loop", "Infinite validation loops"] },
-        { id: "e3", prompt: "Build a subscription billing app but do not store customer records anywhere.", edge_type: "incomplete", expected_behavior: "Compiler maps missing customer entities under DB schema assumptions.", known_failure_modes: ["Foreign key constraint failure"] }
-      ]
-    };
-  },
-
-  15: () => {
-    return {
-      metrics: {
-        success_rate: 98.4,
-        avg_latency_ms: 4850,
-        p95_latency_ms: 8200,
-        avg_repairs: 0.6,
-        repair_effectiveness: 92.5,
-        cost_per_run_usd: 0.045,
-        failure_types: [
-          { type: "UI → API Mismatch", count: 12, percentage: 40.0 },
-          { type: "API → DB Column Mismatch", count: 10, percentage: 33.3 },
-          { type: "Missing Endpoint RBAC Policy", count: 8, percentage: 26.7 }
-        ]
-      },
-      stage_analysis: STAGE_METADATA.map(s => ({
-        stage: s.name,
-        avg_latency_ms: s.id === 1 ? 950 : s.id === 3 ? 800 : s.id >= 5 && s.id <= 8 ? 400 : 250,
-        parallelizable: s.id >= 5 && s.id <= 8,
-        skip_condition: s.id === 2 ? "if intent is not vague" : null,
-        value_score: s.id === 9 || s.id === 13 ? "high" : "medium"
-      })),
-      operating_modes: {
-        fast_mode: { stages: ["Stage 1", "Stage 3", "Stage 4", "Stage 12"], estimated_cost_usd: 0.012, quality_tradeoff: "High speed, skips deep consistency checks and simulation cycles." },
-        reliable_mode: { stages: ["All Stages"], estimated_cost_usd: 0.045, quality_tradeoff: "Default high-reliability compiler; includes validator and simulator stubs." },
-        debug_mode: { stages: ["All Stages + Deep Val Passes"], estimated_cost_usd: 0.065, quality_tradeoff: "Thorough validation auditing; prints visual patch logs." }
-      },
-      recommendations: [
-        "Enable parallel execution for API, UI, Auth, and Business Logic modules (reduces latency by ~1,200ms)",
-        "Employ automatic bypass for Clarifier Agent (Stage 2) when user prompt contains > 5 distinct noun entities"
+        { step: "DDL Sequential Evaluation", status: "pass", detail: "Database schemas parsed successfully with zero FK circular dependencies." },
+        { step: "FK Resolution Integrity Check", status: "pass", detail: "Validated all relational mappings pointing to true primary keys." },
+        { step: "SQL Data Seed Checks", status: "pass", detail: "Seeding succeeded with all constraint rules verified." },
+        { step: "API Routing Reachability Audit", status: "pass", detail: "Verified access endpoints given authentication profiles." },
+        { step: "RBAC boundaries check", status: "pass", detail: "Casbin constraints successfully verified; unauthorized routes returned 403." }
       ]
     };
   }
 };
+
+// Mode Latency and parallelizer modifiers
+function getStageLatency(stageNum) {
+  const isParallel = stageNum >= 5 && stageNum <= 8;
+  const multiplier = state.selectedMode === "fast" ? 0.3 : state.selectedMode === "debug" ? 1.5 : 1.0;
+  
+  if (state.selectedMode === "fast" && isParallel) {
+    return 80 * multiplier; // Executed in parallel with high speeds
+  }
+  
+  switch (stageNum) {
+    case 1: return 850 * multiplier;
+    case 2: return 400 * multiplier;
+    case 3: return 750 * multiplier;
+    case 4: return 600 * multiplier;
+    case 5: return 500 * multiplier;
+    case 6: return 500 * multiplier;
+    case 7: return 500 * multiplier;
+    case 8: return 500 * multiplier;
+    case 9: return 450 * multiplier;
+    case 10: return 600 * multiplier;
+    case 11: return 650 * multiplier;
+    case 12: return 800 * multiplier;
+    case 13: return 500 * multiplier;
+    default: return 300 * multiplier;
+  }
+}
+
+// Token Cost Calculator based on Sonnet Pricing ($3/MTok Input, $15/MTok Output)
+function calculateStageTokensAndCost(stageNum) {
+  const config = APP_TEMPLATES[state.selectedTemplate];
+  const sizeFactor = config.entities ? config.entities.length : 2;
+  
+  const inputTokens = Math.round((2500 + stageNum * 400) * (sizeFactor / 3));
+  const outputTokens = Math.round((1200 + stageNum * 300) * (sizeFactor / 3));
+  
+  const cost = (inputTokens * 3 / 1000000) + (outputTokens * 15 / 1000000);
+  
+  return { inputTokens, outputTokens, cost };
+}
 
 // Compile Stage Execution Orchestration
 async function runCompilationStage(stageNum) {
@@ -949,13 +874,19 @@ async function runCompilationStage(stageNum) {
     try {
       return await executeClaudeAPICall(stageNum);
     } catch (e) {
-      console.warn("Claude API key compilation failed, cascading to procedurally consistent simulation layer...", e);
-      writeToTerminal(`[API Warning] Claude API request failed. Reverting to simulator engine. Reason: ${e.message}`, "warning");
+      console.warn("Claude API key compilation failed, cascading to simulator layer...", e);
+      writeToTerminal(`[API Request Error] Claude API failed. Cascading to procedural simulator. Reason: ${e.message}`, "warning");
     }
   }
 
-  // Simulator Fallback (Extremely realistic and consistent)
-  await delay(200 + Math.random() * 200); // Natural visual delay
+  // Latency Simulator
+  const baseLatency = getStageLatency(stageNum);
+  state.stageMetrics[stageNum] = {
+    latency: baseLatency,
+    ...calculateStageTokensAndCost(stageNum)
+  };
+  
+  await delay(baseLatency); // Visual processing delay
 
   switch (stageNum) {
     case 1:
@@ -975,14 +906,14 @@ async function runCompilationStage(stageNum) {
     case 8:
       return ProceduralGenerator[8](state.stages[3].output, state.stages[4].output, config);
     case 9:
-      const forceViol = (state.selectedTemplate === "ecommerce" && state.validatorViolations.length > 0);
       return ProceduralGenerator[9](
         state.stages[1].output, state.stages[3].output, state.stages[6].output,
         state.stages[5].output, state.stages[4].output, state.stages[7].output, state.stages[8].output,
-        forceViol
+        state.validatorViolations
       );
     case 10:
-      return ProceduralGenerator[10](state.stages[9].output.violations);
+      const forceHuman = (state.selectedTemplate === "ecommerce" && state.repairAttempts >= state.maxRepairAttempts);
+      return ProceduralGenerator[10](state.stages[9].output.violations, forceHuman);
     case 11:
       const layers = {
         db: state.stages[4].output,
@@ -992,7 +923,6 @@ async function runCompilationStage(stageNum) {
         logic: state.stages[8].output
       };
       const patchResult = ProceduralGenerator[11](state.stages[10].output.patches, layers);
-      // Write patches back to local stage outputs
       state.stages[4].output = patchResult.layers.db;
       state.stages[5].output = patchResult.layers.api;
       state.stages[6].output = patchResult.layers.ui;
@@ -1007,45 +937,49 @@ async function runCompilationStage(stageNum) {
       );
     case 13:
       return ProceduralGenerator[13](state.stages[12].output);
-    case 14:
-      return ProceduralGenerator[14]();
-    case 15:
-      return ProceduralGenerator[15]();
   }
 }
 
-// Client Side Claude API Call Executor (Direct Fetch to Anthropic)
+// Client Side Claude API Call Executor (Direct Fetch with Proxy Support)
 async function executeClaudeAPICall(stageNum) {
   const systemPrompt = SYSTEM_PROMPTS[stageNum];
   
-  // Construct proper input details for Claude stage prompt
   let inputPrompt = "";
   if (stageNum === 1) {
     inputPrompt = `USER INPUT:\n${state.userPrompt}`;
   } else {
-    // Ingest outputs of upstream stages based on compiler design
     const previousStageNum = stageNum === 11 ? 10 : stageNum - 1;
     const prevOutput = state.stages[previousStageNum] ? state.stages[previousStageNum].output : {};
     inputPrompt = `INPUT:\n${safeJSONStringify(prevOutput)}`;
   }
 
-  writeToTerminal(`[API Request] Dispatching Stage ${stageNum} Prompt payload directly to Anthropic Claude-3-5-sonnet...`, "info");
+  writeToTerminal(`[API Request] Dispatching Stage ${stageNum} payload to Claude Messages API...`, "info");
+  const startTime = Date.now();
 
-  // Modern direct client fetch (Note: requires browser CORS extension or disabled checks for direct key validation)
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  let targetUrl = "https://api.anthropic.com/v1/messages";
+  const requestBody = {
+    model: "claude-3-5-sonnet-20241022",
+    max_tokens: 4000,
+    system: systemPrompt,
+    messages: [{ role: "user", content: inputPrompt }]
+  };
+
+  // Configure CORS bypass proxies
+  if (state.proxyType === "public") {
+    targetUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+  } else if (state.proxyType === "custom" && state.customProxyUrl) {
+    targetUrl = `${state.customProxyUrl}${encodeURIComponent(targetUrl)}`;
+  }
+
+  const response = await fetch(targetUrl, {
     method: "POST",
     headers: {
       "x-api-key": state.apiKey,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
-      "anthropic-dangerous-direct-browser-access": "true" // Required flag for client calls
+      "anthropic-dangerous-direct-browser-access": "true"
     },
-    body: JSON.stringify({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 4000,
-      system: systemPrompt,
-      messages: [{ role: "user", content: inputPrompt }]
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (!response.ok) {
@@ -1056,16 +990,19 @@ async function executeClaudeAPICall(stageNum) {
   const result = await response.json();
   const outputText = result.content[0].text;
   
-  // Attempt to parse clean JSON
+  const latency = Date.now() - startTime;
+  const inputTokens = result.usage.input_tokens;
+  const outputTokens = result.usage.output_tokens;
+  const cost = (inputTokens * 3 / 1000000) + (outputTokens * 15 / 1000000);
+
+  state.stageMetrics[stageNum] = { latency, inputTokens, outputTokens, cost };
+
   try {
     return JSON.parse(outputText.trim());
   } catch (jsonErr) {
-    // Attempt block recovery
     const regex = /\{[\s\S]*\}/;
     const match = outputText.match(regex);
-    if (match) {
-      return JSON.parse(match[0]);
-    }
+    if (match) return JSON.parse(match[0]);
     throw new Error("Claude output succeeded but failed to parse into valid JSON schema layout.");
   }
 }
@@ -1075,24 +1012,31 @@ async function startFullCompilation() {
   if (state.isCompiling) return;
   state.isCompiling = true;
   document.getElementById("compile-btn").disabled = true;
-  document.getElementById("compile-btn").innerHTML = `<span class="pulse-border-info">Compiling...</span>`;
+  document.getElementById("compile-btn").innerHTML = `Compiling...`;
   
-  // Reset all stages unless cascade resuming
+  // Collapse cascade banners
+  document.getElementById("cascade-alert-banner").style.display = "none";
+  
   const startFrom = state.dirtyFromStage !== null ? state.dirtyFromStage : 1;
   state.dirtyFromStage = null;
 
-  writeToTerminal(`[System] Initializing esha.ai compiler stream... starting from Stage ${startFrom}`, "info");
+  writeToTerminal(`[System] Initializing esha.ai compiler stream (Mode: ${state.selectedMode.toUpperCase()})...`, "info");
+  
+  // Set default timeline status indicators
+  for (let i = startFrom; i <= 13; i++) {
+    updateNodeState(i, "idle");
+  }
+
+  state.repairAttempts = 0; // Reset retry counter
 
   for (let i = startFrom; i <= 13; i++) {
-    // If previous stage triggered clarification loop, pause compilation
+    // Stage 2 Clarification Intercept
     if (i === 2 && state.stages[1].output.requires_clarification) {
-      // Run Stage 2 to get validation feedback
       updateNodeState(2, "running");
       const st2Result = await runCompilationStage(2);
       saveStageData(2, st2Result);
       updateNodeState(2, "error");
       
-      // Pause compiler and display questions modal
       state.isCompiling = false;
       document.getElementById("compile-btn").disabled = false;
       document.getElementById("compile-btn").innerHTML = "Resume Compile";
@@ -1101,9 +1045,15 @@ async function startFullCompilation() {
       return;
     }
 
-    // Skip validator repair loop by default unless error is injected in ecommerce template
+    // Fast Mode Bypasses execution simulation
+    if (i === 13 && state.selectedMode === "fast") {
+      updateNodeState(13, "success");
+      saveStageData(13, { simulation_steps: [] });
+      continue;
+    }
+
+    // Repair logic loops
     if (i === 10 || i === 11) {
-      // In standard pass, Validator (Stage 9) succeeds, bypassing Patcher (10) and Targeted Regenerator (11)
       if (state.validatorViolations.length === 0) {
         updateNodeState(i, "success");
         saveStageData(i, { message: "Bypassed - Validation check passed with 0 violations." });
@@ -1118,40 +1068,56 @@ async function startFullCompilation() {
       const result = await runCompilationStage(i);
       saveStageData(i, result);
       
+      // Stage 9 Validator Inconsistency Audit Loops
       if (i === 9 && result.status === "FAIL") {
         updateNodeState(9, "error");
-        writeToTerminal(`[Error] Stage 9 Validator failed with ${result.error_count} errors! Redirecting to Stage 10 (Patch Generator)`, "error");
         
+        state.repairAttempts++;
+        document.getElementById("repair-attempt-indicator").textContent = `Repair Loop: Attempt ${state.repairAttempts}/${state.maxRepairAttempts}`;
+        
+        writeToTerminal(`[Validator Warning] Stage 9 fail. Repair Attempt ${state.repairAttempts}/${state.maxRepairAttempts} active.`, "warning");
+
         // Execute Stage 10 (Patcher)
         updateNodeState(10, "running");
         const patchResult = await runCompilationStage(10);
         saveStageData(10, patchResult);
+        
+        // Block State Check: Exceeded Max Retries OR requires_human flag active
+        const hasUnpatchable = patchResult.patches.some(p => p.requires_human) || state.repairAttempts >= state.maxRepairAttempts;
+        
+        if (hasUnpatchable) {
+          updateNodeState(10, "error");
+          writeToTerminal("[Fatal Error] Stage 10 identified unpatchable circular violations. Compilation blocked.", "error");
+          
+          state.isCompiling = false;
+          document.getElementById("compile-btn").disabled = false;
+          document.getElementById("compile-btn").innerHTML = "Re-compile App";
+          
+          openBlockedStateOverlay(result.violations);
+          return;
+        }
+
         updateNodeState(10, "repaired");
-        writeToTerminal(`[Patcher] Stage 10 generated ${patchResult.patches.length} surgical JSONPatch operations successfully.`, "warning");
+        writeToTerminal(`[Patcher] Stage 10 generated ${patchResult.patches.length} surgical JSONPatches.`, "warning");
 
         // Execute Stage 11 (Targeted Regenerator)
         updateNodeState(11, "running");
         const regenResult = await runCompilationStage(11);
         saveStageData(11, regenResult);
         updateNodeState(11, "success");
-        writeToTerminal(`[Regenerator] Stage 11 successfully merged patches into codebase structures.`, "success");
+        writeToTerminal(`[Regenerator] Stage 11 successfully merged patches.`, "success");
 
         // Re-execute Stage 9 to confirm validation pass
         updateNodeState(9, "running");
-        await delay(300);
-        // Clear violations so validator passes on 2nd pass
-        state.validatorViolations = [];
-        const secPassResult = await runCompilationStage(9);
-        saveStageData(9, secPassResult);
-        updateNodeState(9, "success");
-        writeToTerminal(`[Validator] Second-pass consistency validation: PASS. 0 violations found.`, "success");
+        state.validatorViolations = []; // Clear violations so next validator pass succeeds
+        
+        i = 8; // Back-track to Stage 9 (loop iteration will increment to 9)
         continue;
       }
 
       updateNodeState(i, "success");
       writeToTerminal(`[Success] Stage ${i} output compiled successfully.`, "success");
       
-      // Dynamic rendering of terminal logs in stage 13
       if (i === 13) {
         renderExecutionTerminal(result);
       }
@@ -1166,33 +1132,32 @@ async function startFullCompilation() {
     }
   }
 
-  // Populate Stage 14 (offline benchmark) & Stage 15 (tradeoffs) automatically at compile completion
+  // Seed metrics automatically
   state.stages[14] = { output: ProceduralGenerator[14]() };
   state.stages[15] = { output: ProceduralGenerator[15]() };
 
   state.isCompiling = false;
   document.getElementById("compile-btn").disabled = false;
   document.getElementById("compile-btn").innerHTML = "Re-compile App";
-  writeToTerminal(`[System] Compilation finished. Runtime assets delivered and simulated!`, "success");
+  document.getElementById("repair-attempt-indicator").textContent = "Pipeline Status: Ready";
   
-  // Refresh UI and jump to contracts tab automatically
+  writeToTerminal(`[System] Compilation finished successfully.`, "success");
+  
   renderActiveStage();
   updateCodeViewerTabContent();
-  updateMetricsUI();
+  renderLatencyChart();
+  updateMetricsDashboardData();
 }
 
-// UI State Renderers
+// Node visualization highlights
 function updateNodeState(stageNum, status) {
   const node = document.querySelector(`.timeline-node[data-id="${stageNum}"]`);
   if (!node) return;
   
   node.className = `timeline-node ${status}`;
   const statusLabel = node.querySelector(".node-status");
-  if (statusLabel) {
-    statusLabel.textContent = status;
-  }
+  if (statusLabel) statusLabel.textContent = status;
 
-  // Active status highlight logic
   const connector = document.querySelector(`.timeline-connector[data-from="${stageNum}"]`);
   if (connector) {
     if (status === "success") {
@@ -1218,15 +1183,12 @@ function renderActiveStage() {
   const stageData = state.stages[stageNum];
   const meta = STAGE_METADATA[stageNum - 1];
 
-  // Update headers
   document.getElementById("pane-title").textContent = meta.name;
   document.getElementById("pane-tag").textContent = meta.tag;
   document.getElementById("pane-description").textContent = meta.desc;
-
-  // Render Prompt viewer
   document.getElementById("stage-prompt-content").textContent = SYSTEM_PROMPTS[stageNum] || "No system prompt.";
 
-  // Render Input viewer
+  // Render Input
   const inputEl = document.getElementById("stage-input-content");
   if (stageNum === 1) {
     inputEl.innerHTML = `<div class="prompt-viewer">${state.userPrompt}</div>`;
@@ -1235,17 +1197,15 @@ function renderActiveStage() {
     inputEl.innerHTML = `<pre class="code-viewer">${typeof prevOutput === 'string' ? prevOutput : safeJSONStringify(prevOutput)}</pre>`;
   }
 
-  // Render Output/Editor viewer
+  // Render Output
   const outputContainer = document.getElementById("stage-output-container");
   
   if (stageNum === 9) {
-    // High-fidelity validation dashboard
     renderValidatorDashboard(outputContainer, stageData ? stageData.output : null);
     return;
   }
 
   if (stageNum === 13) {
-    // Simulator terminal layout
     outputContainer.innerHTML = `
       <div class="col-header">Dry-Run Execution Terminal <button class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="reRunTerminalSimulation()">Restart</button></div>
       <div class="col-content" style="padding:0;">
@@ -1258,19 +1218,20 @@ function renderActiveStage() {
     return;
   }
 
-  // Standard JSON output editor
   if (stageData && stageData.output) {
-    const formattedJSON = safeJSONStringify(stageData.output);
+    const costData = state.stageMetrics[stageNum];
+    const costText = costData ? ` | Cost: $${costData.cost.toFixed(4)}` : "";
+    
     outputContainer.innerHTML = `
       <div class="col-header">
-        <span>Output Payload (JSON)</span>
+        <span>Output Payload (JSON) ${costText}</span>
         <div>
           <button id="save-edit-btn" class="btn btn-secondary" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="saveStageEdits(${stageNum})">Save Changes</button>
         </div>
       </div>
       <div class="col-content" style="padding:0;">
         <div class="code-container">
-          <textarea id="json-editor" class="editor-textarea">${formattedJSON}</textarea>
+          <textarea id="json-editor" class="editor-textarea">${safeJSONStringify(stageData.output)}</textarea>
         </div>
       </div>
     `;
@@ -1286,7 +1247,7 @@ function renderActiveStage() {
   }
 }
 
-// Stage 9 Custom Validator Dashboard Renderer
+// Stage 9 Custom Validator Dashboard
 function renderValidatorDashboard(container, validatorOutput) {
   if (!validatorOutput) {
     container.innerHTML = `
@@ -1371,24 +1332,22 @@ function renderValidatorDashboard(container, validatorOutput) {
   `;
 }
 
-// Stage 13 Live Terminal Log Simulation
+// Stage 13 Terminal simulation
 function renderExecutionTerminal(simOutput) {
   const terminal = document.getElementById("sim-terminal");
   if (!terminal) return;
 
   terminal.innerHTML = "";
-  let currentStep = 0;
+  if (!simOutput.simulation_steps || simOutput.simulation_steps.length === 0) {
+    terminal.innerHTML = "<div>[FAST MODE] Skipped Dry-Run simulation stages to optimize latencies.</div>";
+    return;
+  }
 
   function printLine(text, type = "info", delayMs = 0) {
     setTimeout(() => {
       const line = document.createElement("div");
       line.className = `terminal-line ${type}`;
-      
-      let prefix = "[INFO]";
-      if (type === "success") prefix = "[PASS]";
-      if (type === "warning") prefix = "[WARN]";
-      if (type === "error") prefix = "[FAIL]";
-
+      let prefix = type === "success" ? "[PASS]" : type === "error" ? "[FAIL]" : "[INFO]";
       line.innerHTML = `<span>${prefix}</span> <span>${text}</span>`;
       terminal.appendChild(line);
       terminal.scrollTop = terminal.scrollHeight;
@@ -1396,20 +1355,11 @@ function renderExecutionTerminal(simOutput) {
   }
 
   printLine("Initializing dry-run sandboxed compiler execution simulator...", "info", 0);
-  printLine("Syncing generated runtime contracts locally...", "info", 300);
-
   simOutput.simulation_steps.forEach((step, index) => {
-    const delayVal = 600 + index * 400;
+    const delayVal = 400 + index * 300;
     printLine(`Auditing constraint: ${step.step}...`, "info", delayVal);
-    printLine(`${step.detail}`, step.status === "pass" ? "success" : "error", delayVal + 200);
+    printLine(`${step.detail}`, step.status === "pass" ? "success" : "error", delayVal + 150);
   });
-
-  const finalDelay = 600 + simOutput.simulation_steps.length * 400 + 400;
-  setTimeout(() => {
-    printLine("----------------------------------------------------------------", "info", 0);
-    printLine("✔ Pipeline execution simulations completed with 0 errors.", "success", 100);
-    printLine("Compiler build artifacts successfully packaged. READY FOR DEPLOYMENT.", "success", 200);
-  }, finalDelay);
 }
 
 function reRunTerminalSimulation() {
@@ -1418,7 +1368,7 @@ function reRunTerminalSimulation() {
   }
 }
 
-// Reactive Edit Downstream Cascading Logic
+// Cascade Edit re-run forward-cascading logic
 function saveStageEdits(stageNum) {
   const editor = document.getElementById("json-editor");
   if (!editor) return;
@@ -1427,28 +1377,30 @@ function saveStageEdits(stageNum) {
     const parsedJSON = JSON.parse(editor.value);
     state.stages[stageNum].output = parsedJSON;
     
-    // Mark downstream stages as Dirty / Pending Re-run
+    // Mark downstream stages as Dirty
     state.dirtyFromStage = stageNum + 1;
-    writeToTerminal(`[System] Edited Stage ${stageNum} output manually. Downstream Stages ${stageNum + 1} to 13 marked as dirty.`, "warning");
+    writeToTerminal(`[Cascade Edit] Stage ${stageNum} modified manually. Downstream Stages ${stageNum + 1} to 13 dirty.`, "warning");
     
-    // Visually mark downstream nodes in graph
     for (let i = stageNum + 1; i <= 13; i++) {
       updateNodeState(i, "idle");
     }
 
-    // Adapt glowing button
-    document.getElementById("compile-btn").innerHTML = `Resume Compile (From Stage ${stageNum + 1})`;
+    // Adapt glowing cascade alert banner
+    document.getElementById("cascade-stage-num").textContent = stageNum + 1;
+    document.getElementById("cascade-alert-banner").style.display = "flex";
+
+    document.getElementById("compile-btn").innerHTML = `Resume Compile`;
     document.getElementById("compile-btn").className = "btn btn-success";
 
-    alert(`Changes saved! Downstream stages are marked as pending re-compile. Click 'Resume Compile' to cascade your edits.`);
     renderActiveStage();
+    alert(`Edits saved! The compiler will cascade your modified schema outputs from Stage ${stageNum + 1} onwards upon clicking 'Resume Re-compile'.`);
 
   } catch (e) {
-    alert(`Invalid JSON format: ${e.message}. Please fix errors before saving.`);
+    alert(`Invalid JSON format: ${e.message}`);
   }
 }
 
-// Inject manual Stage 9 Validator violation
+// Inject validator mismatch
 function triggerValidatorError() {
   state.validatorViolations = [
     {
@@ -1457,31 +1409,23 @@ function triggerValidatorError() {
       severity: "error",
       description: "UI Component Form Field 'discount_code' references endpoint 'ep_create_orders', but the API endpoint schema is missing the 'discount_code' request body field.",
       affected_ids: ["comp_orders_form", "ep_create_orders"],
-      suggested_fix: "Add the 'discount_code' request parameter field to the API Generator endpoint definition, or remove it from the UI component form."
+      suggested_fix: "Add the 'discount_code' request parameter field to the API Generator endpoint definition."
     }
   ];
   
   writeToTerminal("[System] Manually injected a UI-to-API consistency violation in Stage 9 validator workspace.", "warning");
   
-  // Re-run stage 9 compilation
   updateNodeState(9, "error");
-  
-  // Mark subsequent stages as dirty
-  for (let i = 10; i <= 13; i++) {
-    updateNodeState(i, "idle");
-  }
+  for (let i = 10; i <= 13; i++) updateNodeState(i, "idle");
 
-  // Force compilation re-run for Stage 9
   runCompilationStage(9).then(res => {
     saveStageData(9, res);
     renderActiveStage();
   });
 }
 
-// Handle targeted patching sequence (Stages 10 and 11)
+// Targeted patching execution
 async function triggerPatcherHealing() {
-  writeToTerminal("[System] Manually triggering Stage 10 Patch Generator and Stage 11 Targeted Regenerator...", "info");
-  
   updateNodeState(10, "running");
   const patches = await runCompilationStage(10);
   saveStageData(10, patches);
@@ -1492,7 +1436,6 @@ async function triggerPatcherHealing() {
   saveStageData(11, regen);
   updateNodeState(11, "success");
 
-  // Re-verify
   state.validatorViolations = [];
   updateNodeState(9, "running");
   const secPass = await runCompilationStage(9);
@@ -1502,7 +1445,25 @@ async function triggerPatcherHealing() {
   renderActiveStage();
 }
 
-// Interactive Clarification Loop Handler
+// Block State Overlay Toggler for Unpatchable Mismatches
+function openBlockedStateOverlay(violations) {
+  const overlay = document.getElementById("blocked-state-overlay");
+  const container = document.getElementById("unpatchable-violations-list");
+  
+  container.innerHTML = violations.map(viol => `
+    <div style="margin-bottom:0.75rem; border-bottom:1px solid rgba(239,68,68,0.1); padding-bottom:0.5rem;">
+      <span class="v-badge ${viol.severity}" style="font-size:0.65rem;">${viol.severity}</span>
+      <span class="v-layer-tag" style="font-size:0.65rem;">${viol.layer}</span>
+      <div style="font-weight:600; color:var(--text-main); font-size:0.8rem; margin:0.25rem 0;">${viol.description}</div>
+      <div style="font-size:0.75rem; color:var(--text-muted);">Affected path: <code>${viol.affected_ids.join(', ')}</code></div>
+      <div style="font-size:0.75rem; color:var(--warning); font-style:italic; margin-top:0.2rem;">Suggested Action: ${viol.suggested_fix}</div>
+    </div>
+  `).join('');
+
+  overlay.className = "overlay active";
+}
+
+// Stage 2 Clarifier Loop UI Form Handler
 function openClarifierModal(questions) {
   const overlay = document.getElementById("clarifier-overlay");
   const container = document.getElementById("clarifier-questions-container");
@@ -1510,7 +1471,7 @@ function openClarifierModal(questions) {
   container.innerHTML = questions.map(q => `
     <div class="clarifier-question-box">
       <div class="clarifier-q">${q.question}</div>
-      <input type="text" id="ans-${q.id}" class="clarifier-input" placeholder="Enter clarification detail...">
+      <input type="text" id="ans-${q.id}" class="clarifier-input" placeholder="Enter specification...">
     </div>
   `).join('');
 
@@ -1527,24 +1488,94 @@ function submitClarifierAnswers() {
   state.clarifierAnswers = answers;
   document.getElementById("clarifier-overlay").className = "overlay";
 
-  writeToTerminal(`[System] Received user clarification details:
-- Domain: "${answers.q1}"
-- Roles: "${answers.q2}"
-- Integrations: "${answers.q3}"`, "success");
+  writeToTerminal(`[System] Intent loop clarified: Domain=${answers.q1} | Roles=${answers.q2}`, "success");
 
-  // Inject answers back into user prompt and trigger clean compilation
-  state.userPrompt = `${APP_TEMPLATES[state.selectedTemplate].prompt} [Clarified Scope: Domain: ${answers.q1}, Permission Boundaries: ${answers.q2}, Integrations: ${answers.q3}]`;
+  state.userPrompt = `${APP_TEMPLATES[state.selectedTemplate].prompt} [Clarified: Domain=${answers.q1}, Permissions=${answers.q2}, Integrations=${answers.q3}]`;
   document.getElementById("user-prompt-input").value = state.userPrompt;
   
-  // Mark pipeline nodes clean
   updateNodeState(1, "idle");
   updateNodeState(2, "idle");
-
-  // Resume compile automatically
   startFullCompilation();
 }
 
-// Visual Log Terminal Printer
+// Client Side bundle export (.ZIP) using JSZip
+function exportBuildBundleZip() {
+  if (!state.stages[12] || !state.stages[12].output) {
+    alert("Please run compilation first to generate runtime contract outputs.");
+    return;
+  }
+
+  const contract = state.stages[12].output;
+  const zip = new JSZip();
+  
+  zip.file("db/schema.sql", contract.db.ddl);
+  zip.file("db/seed.sql", contract.db.seed);
+  zip.file("api/api-types.ts", contract.api.types);
+  zip.file("api/api-routes.ts", contract.api.stubs);
+  zip.file("auth/rbac-policies.csv", contract.auth.policies.map(p => `p, ${p.role}, ${p.resource}, ${p.action}, ${p.effect}`).join("\n"));
+  zip.file("ui/routes.json", JSON.stringify(contract.ui.routes, null, 2));
+  zip.file("checklist.json", JSON.stringify(contract.execution_checklist, null, 2));
+  
+  zip.generateAsync({type:"blob"}).then(function(content) {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(content);
+    link.download = `esha-compiler-build-${state.selectedTemplate}-${Date.now()}.zip`;
+    link.click();
+    writeToTerminal("[System] Successfully exported compiler build stubs as a structured ZIP bundle.", "success");
+  });
+}
+
+// Per-Stage Latency visual bar renderer
+function renderLatencyChart() {
+  const container = document.getElementById("stage-latency-bars");
+  if (!container) return;
+
+  container.innerHTML = "";
+  
+  STAGE_METADATA.slice(0, 13).forEach(meta => {
+    const metric = state.stageMetrics[meta.id];
+    const latency = metric ? metric.latency : 0;
+    const cost = metric ? metric.cost : 0;
+
+    const maxLatency = 1500;
+    const percentage = Math.min((latency / maxLatency) * 100, 100);
+
+    const bar = document.createElement("div");
+    bar.className = "latency-bar-container";
+    bar.innerHTML = `
+      <div class="latency-bar-label">${meta.name}</div>
+      <div class="latency-bar-track">
+        <div class="latency-bar-fill" style="width: ${percentage}%;"></div>
+      </div>
+      <div class="latency-bar-time">${latency.toFixed(0)}ms ($${cost.toFixed(4)})</div>
+    `;
+    container.appendChild(bar);
+  });
+}
+
+function updateMetricsDashboardData() {
+  let totalCost = 0;
+  let totalLatency = 0;
+  
+  Object.keys(state.stageMetrics).forEach(key => {
+    totalCost += state.stageMetrics[key].cost;
+    totalLatency += state.stageMetrics[key].latency;
+  });
+
+  state.metrics.avgLatency = totalLatency;
+  state.metrics.p95Latency = totalLatency * 1.5;
+  state.metrics.costPerRun = totalCost;
+
+  document.getElementById("m-avg-latency").textContent = `${(totalLatency / 1000).toFixed(2)}s`;
+  document.getElementById("m-p95-latency").textContent = `${(totalLatency * 1.5 / 1000).toFixed(2)}s`;
+  document.getElementById("m-cost-usd").textContent = `$${totalCost.toFixed(3)}`;
+  
+  document.getElementById("m-success-rate").textContent = `${state.metrics.successRate}%`;
+  document.getElementById("m-repair-effectiveness").textContent = `${state.metrics.repairEffectiveness}%`;
+  document.getElementById("m-avg-repairs").textContent = state.metrics.avgRepairs;
+}
+
+// Event Console logs logger
 function writeToTerminal(text, type = "info") {
   const logs = document.getElementById("console-logs");
   if (!logs) return;
@@ -1566,7 +1597,7 @@ function writeToTerminal(text, type = "info") {
   logs.scrollTop = logs.scrollHeight;
 }
 
-// Stage 12 Runtime Contract Tabs Content Updater
+// Runtime Code viewer
 let activeCodeTab = "ddl";
 function setCodeTab(tabName) {
   activeCodeTab = tabName;
@@ -1613,14 +1644,62 @@ function updateCodeViewerTabContent() {
   }
 }
 
-// Stage 15 Metrics & Batch Simulator
-function updateMetricsUI() {
-  document.getElementById("m-success-rate").textContent = `${state.metrics.successRate}%`;
-  document.getElementById("m-avg-latency").textContent = `${(state.metrics.avgLatency / 1000).toFixed(2)}s`;
-  document.getElementById("m-p95-latency").textContent = `${(state.metrics.p95Latency / 1000).toFixed(2)}s`;
-  document.getElementById("m-repair-effectiveness").textContent = `${state.metrics.repairEffectiveness}%`;
-  document.getElementById("m-avg-repairs").textContent = state.metrics.avgRepairs;
-  document.getElementById("m-cost-usd").textContent = `$${state.metrics.costPerRun.toFixed(3)}`;
+// Benchmark Template Loader
+function loadBenchmarkToWorkspace(templateName, forceAdversarialViolations = false) {
+  const selector = document.getElementById("template-dropdown");
+  selector.value = templateName;
+  state.selectedTemplate = templateName;
+  
+  const config = APP_TEMPLATES[templateName];
+  state.userPrompt = config.prompt;
+  document.getElementById("user-prompt-input").value = state.userPrompt;
+
+  // Render expected adversarial failure warning
+  const failureBanner = document.getElementById("expected-failure-banner");
+  if (forceAdversarialViolations) {
+    state.validatorViolations = [
+      {
+        id: "viol_circular_logic",
+        layer: "cross",
+        severity: "error",
+        description: "Severe architectural circular reference: checkout creates reviews, but reviews block completed checkouts.",
+        affected_ids: ["ep_checkout", "tb_reviews"],
+        suggested_fix: "Remove circular dependencies and make review creation independent of checkout sequence validation."
+      }
+    ];
+    failureBanner.style.display = "flex";
+    document.getElementById("failure-banner-text").textContent = "Expected to trigger Validation Block Overlay after 3 repair loops.";
+  } else if (config.expected_failure) {
+    state.validatorViolations = [];
+    failureBanner.style.display = "flex";
+    document.getElementById("failure-banner-text").textContent = config.expected_failure;
+  } else {
+    state.validatorViolations = [];
+    failureBanner.style.display = "none";
+  }
+
+  writeToTerminal(`[System] Loaded Benchmark Prompt: "${config.name}"`, "info");
+  
+  // Clear previous compile states
+  state.stages = {};
+  for (let i = 1; i <= 13; i++) {
+    updateNodeState(i, "idle");
+  }
+
+  document.getElementById("compile-btn").innerHTML = "Run Compiler";
+  document.getElementById("compile-btn").className = "btn btn-primary";
+  renderActiveStage();
+}
+
+function handleTemplateChange() {
+  const selector = document.getElementById("template-dropdown");
+  loadBenchmarkToWorkspace(selector.value);
+}
+
+function handleModeChange() {
+  const selector = document.getElementById("mode-dropdown");
+  state.selectedMode = selector.value;
+  writeToTerminal(`[System] Operating Mode updated to: ${state.selectedMode.toUpperCase()}`, "info");
 }
 
 async function runBatchMetricsSimulation() {
@@ -1634,13 +1713,12 @@ async function runBatchMetricsSimulation() {
   document.getElementById("console-logs").appendChild(loader);
 
   for (let i = 1; i <= 50; i++) {
-    await delay(30);
-    loader.textContent = `Processing run ${i}/50: success=OK latency=${3500 + Math.random() * 2000}ms cost=$0.045`;
+    await delay(20);
+    loader.textContent = `Processing run ${i}/50: success=OK latency=${3000 + Math.random() * 2000}ms cost=$0.045`;
   }
   
   document.getElementById("batch-loader-stat").remove();
 
-  // Update metrics with slight dynamic variations
   state.metrics = {
     successRate: 98.8,
     avgLatency: 4520,
@@ -1650,69 +1728,11 @@ async function runBatchMetricsSimulation() {
     costPerRun: 0.043
   };
 
-  updateMetricsUI();
+  updateMetricsDashboardData();
   writeToTerminal("[Metrics] Bulk compiler batch run completed! Operating parameters recalibrated.", "success");
 }
 
-// Template loader handler
-function handleTemplateChange() {
-  const selector = document.getElementById("template-dropdown");
-  state.selectedTemplate = selector.value;
-  state.userPrompt = APP_TEMPLATES[selector.value].prompt;
-  document.getElementById("user-prompt-input").value = state.userPrompt;
-  
-  writeToTerminal(`[System] App Template updated to: "${APP_TEMPLATES[selector.value].name}"`, "info");
-  
-  // Clear previous outputs
-  state.stages = {};
-  state.validatorViolations = [];
-  
-  for (let i = 1; i <= 13; i++) {
-    updateNodeState(i, "idle");
-  }
-
-  document.getElementById("compile-btn").innerHTML = "Run Compiler";
-  document.getElementById("compile-btn").className = "btn btn-primary";
-  renderActiveStage();
-}
-
-// Setup Event Listeners and initialization
-window.addEventListener("DOMContentLoaded", () => {
-  // Initialize Node clicks
-  document.querySelectorAll(".timeline-node").forEach(node => {
-    node.addEventListener("click", () => {
-      const id = parseInt(node.getAttribute("data-id"));
-      state.activeStage = id;
-      
-      // Update sidebar state
-      document.querySelectorAll(".sidebar-item").forEach(item => item.classList.remove("active"));
-      const sidebarItem = document.querySelector(`.sidebar-item[data-id="${id}"]`);
-      if (sidebarItem) sidebarItem.classList.add("active");
-
-      renderActiveStage();
-    });
-  });
-
-  // Initialize Sidebar clicks
-  document.querySelectorAll(".sidebar-item").forEach(item => {
-    item.addEventListener("click", () => {
-      const id = parseInt(item.getAttribute("data-id"));
-      state.activeStage = id;
-
-      // Update Node active state
-      document.querySelectorAll(".timeline-node").forEach(el => el.classList.remove("active"));
-      const node = document.querySelector(`.timeline-node[data-id="${id}"]`);
-      if (node) node.classList.add("active");
-
-      renderActiveStage();
-    });
-  });
-
-  // Load E-Commerce as default
-  handleTemplateChange();
-});
-
-// Settings API Drawer Toggler
+// settings drawers toggles
 function toggleApiSettingsDrawer() {
   const overlay = document.getElementById("api-key-overlay");
   overlay.className = overlay.className.includes("active") ? "overlay" : "overlay active";
@@ -1722,6 +1742,13 @@ function saveApiKeyDetails() {
   const keyInput = document.getElementById("anthropic-api-key").value;
   state.apiKey = keyInput;
   state.useClaudeAPI = keyInput.trim().length > 0;
+
+  // Read CORS proxy choices
+  const radios = document.getElementsByName("proxy-type");
+  for (let r of radios) {
+    if (r.checked) state.proxyType = r.value;
+  }
+  state.customProxyUrl = document.getElementById("custom-proxy-url").value;
 
   const btn = document.getElementById("api-key-header-btn");
   if (state.useClaudeAPI) {
@@ -1733,7 +1760,7 @@ function saveApiKeyDetails() {
   }
 
   toggleApiSettingsDrawer();
-  writeToTerminal(`[System] API Key configuration updated. Real Claude API mode: ${state.useClaudeAPI ? "ON" : "OFF"}.`, "success");
+  writeToTerminal(`[System] API Key updated. Real API Mode: ${state.useClaudeAPI ? "ON" : "OFF"}. Proxy: ${state.proxyType.toUpperCase()}`, "success");
 }
 
 function handleTabChange(tabName) {
@@ -1750,5 +1777,44 @@ function handleTabChange(tabName) {
   if (activeBtn) activeBtn.classList.add("active");
 }
 
-// Utility timer delay
-const delay = ms => new Promise(res => setTimeout(res, ms));
+// Setup Event Listeners and initialization
+window.addEventListener("DOMContentLoaded", () => {
+  // Initialize Node clicks
+  document.querySelectorAll(".timeline-node").forEach(node => {
+    node.addEventListener("click", () => {
+      const id = parseInt(node.getAttribute("data-id"));
+      state.activeStage = id;
+      
+      document.querySelectorAll(".sidebar-item").forEach(item => item.classList.remove("active"));
+      const sidebarItem = document.querySelector(`.sidebar-item[data-id="${id}"]`);
+      if (sidebarItem) sidebarItem.classList.add("active");
+
+      renderActiveStage();
+    });
+  });
+
+  // Initialize Sidebar clicks
+  document.querySelectorAll(".sidebar-item").forEach(item => {
+    item.addEventListener("click", () => {
+      const id = parseInt(item.getAttribute("data-id"));
+      state.activeStage = id;
+
+      document.querySelectorAll(".timeline-node").forEach(el => el.classList.remove("active"));
+      const node = document.querySelector(`.timeline-node[data-id="${id}"]`);
+      if (node) node.classList.add("active");
+
+      renderActiveStage();
+    });
+  });
+
+  // Manage proxy visibility
+  const radios = document.getElementsByName("proxy-type");
+  for (let r of radios) {
+    r.addEventListener("change", () => {
+      document.getElementById("custom-proxy-url").style.display = r.value === "custom" ? "block" : "none";
+    });
+  }
+
+  // Load E-Commerce as default
+  handleTemplateChange();
+});
