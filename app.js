@@ -832,7 +832,7 @@ function getStageLatency(stageNum) {
   const multiplier = state.selectedMode === "fast" ? 0.3 : state.selectedMode === "debug" ? 1.5 : 1.0;
   
   if (state.selectedMode === "fast" && isParallel) {
-    return 80 * multiplier; // Executed in parallel with high speeds
+    return 80 * multiplier;
   }
   
   switch (stageNum) {
@@ -853,7 +853,7 @@ function getStageLatency(stageNum) {
   }
 }
 
-// Token Cost Calculator based on Sonnet Pricing ($3/MTok Input, $15/MTok Output)
+// Token Cost Calculator based on Sonnet Pricing
 function calculateStageTokensAndCost(stageNum) {
   const config = APP_TEMPLATES[state.selectedTemplate];
   const sizeFactor = config.entities ? config.entities.length : 2;
@@ -864,6 +864,22 @@ function calculateStageTokensAndCost(stageNum) {
   const cost = (inputTokens * 3 / 1000000) + (outputTokens * 15 / 1000000);
   
   return { inputTokens, outputTokens, cost };
+}
+
+// Render dynamic skeleton shimmer in active workspace panel
+function renderLoadingState(stageNum) {
+  const outputContainer = document.getElementById("stage-output-container");
+  if (state.activeStage === stageNum) {
+    outputContainer.innerHTML = `
+      <div class="col-header">Compiling Stage ${stageNum}...</div>
+      <div class="col-content" style="display:flex; flex-direction:column; gap:0.75rem; padding:1.25rem;">
+        <div class="skeleton-shimmer" style="height: 1.5rem; width: 60%;"></div>
+        <div class="skeleton-shimmer" style="height: 6rem; width: 100%;"></div>
+        <div class="skeleton-shimmer" style="height: 2rem; width: 80%;"></div>
+        <div class="skeleton-shimmer" style="height: 4rem; width: 95%;"></div>
+      </div>
+    `;
+  }
 }
 
 // Compile Stage Execution Orchestration
@@ -964,7 +980,6 @@ async function executeClaudeAPICall(stageNum) {
     messages: [{ role: "user", content: inputPrompt }]
   };
 
-  // Configure CORS bypass proxies
   if (state.proxyType === "public") {
     targetUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
   } else if (state.proxyType === "custom" && state.customProxyUrl) {
@@ -1062,6 +1077,7 @@ async function startFullCompilation() {
     }
 
     updateNodeState(i, "running");
+    renderLoadingState(i); // Inject shimmer skeletons dynamically!
     writeToTerminal(`[Compiler] Stage ${i} (${STAGE_METADATA[i-1].name}) executing...`, "info");
 
     try {
@@ -1079,6 +1095,7 @@ async function startFullCompilation() {
 
         // Execute Stage 10 (Patcher)
         updateNodeState(10, "running");
+        renderLoadingState(10);
         const patchResult = await runCompilationStage(10);
         saveStageData(10, patchResult);
         
@@ -1102,6 +1119,7 @@ async function startFullCompilation() {
 
         // Execute Stage 11 (Targeted Regenerator)
         updateNodeState(11, "running");
+        renderLoadingState(11);
         const regenResult = await runCompilationStage(11);
         saveStageData(11, regenResult);
         updateNodeState(11, "success");
@@ -1109,6 +1127,7 @@ async function startFullCompilation() {
 
         // Re-execute Stage 9 to confirm validation pass
         updateNodeState(9, "running");
+        renderLoadingState(9);
         state.validatorViolations = []; // Clear violations so next validator pass succeeds
         
         i = 8; // Back-track to Stage 9 (loop iteration will increment to 9)
@@ -1581,7 +1600,7 @@ function writeToTerminal(text, type = "info") {
   if (!logs) return;
 
   const line = document.createElement("div");
-  line.style.marginBottom = "0.25rem";
+  line.style.margin = "0.25rem 0";
   line.style.fontSize = "0.75rem";
   line.style.fontFamily = "var(--font-mono)";
   

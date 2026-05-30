@@ -25,7 +25,7 @@
   --text-inverse: #0B0F19;
   
   --font-sans: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   
   --transition-fast: 0.15s ease;
   --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -91,10 +91,12 @@ header {
   padding: 1.25rem 2rem;
   border-bottom: 1px solid var(--border-color);
   background: rgba(11, 15, 25, 0.8);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 50;
+  min-height: 0;
 }
 
 .brand-section {
@@ -178,6 +180,7 @@ header {
   max-width: 1600px;
   margin: 0 auto;
   width: 100%;
+  min-height: 0;
 }
 
 /* Timeline Flow Graph */
@@ -186,6 +189,7 @@ header {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   position: relative;
   overflow: hidden;
@@ -442,10 +446,10 @@ header {
   align-items: center;
 }
 
-/* Playground Work Grid */
+/* Playground Work Grid - Full 3 Column Layout */
 .playground-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1.8fr;
+  grid-template-columns: 1fr 1.05fr 1.15fr;
   height: 100%;
   overflow: hidden;
 }
@@ -522,6 +526,19 @@ header {
   white-space: pre-wrap;
 }
 
+/* Dynamic Skeleton Shimmer Styles */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.02) 25%, rgba(255, 255, 255, 0.07) 50%, rgba(255, 255, 255, 0.02) 75%);
+  background-size: 200% 100%;
+  animation: shimmer-load 1.4s infinite linear;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer-load {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Buttons */
 .btn {
   background: var(--primary);
@@ -573,6 +590,7 @@ header {
   opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none !important;
+  pointer-events: none; /* Block click triggers */
 }
 
 /* Interactive Tabs Section */
@@ -581,6 +599,7 @@ header {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 1.5rem;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -718,7 +737,7 @@ header {
   font-size: 0.75rem;
 }
 
-/* Stage 13 Execution Terminal */
+/* Stage 13 Execution Terminal - Adaptive Heights */
 .terminal-console {
   background: #030712;
   border: 1px solid var(--border-color);
@@ -727,7 +746,9 @@ header {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   line-height: 1.6;
-  height: 250px;
+  min-height: 250px;
+  max-height: 450px;
+  height: auto;
   overflow-y: auto;
   color: #34D399;
 }
@@ -870,6 +891,7 @@ header {
   right: 0;
   bottom: 0;
   background: rgba(11, 15, 25, 0.85);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   z-index: 100;
   display: flex;
@@ -907,8 +929,11 @@ header {
   align-items: center;
 }
 
+/* Scrollable Modal Body for Mobile Protection */
 .modal-body {
   padding: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .modal-footer {
